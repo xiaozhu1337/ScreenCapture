@@ -57,18 +57,12 @@ WinPin::WinPin(int x, int y, int w, int h, const std::vector<BYTE>* data) : Ling
 	onMouseDown.add([this](POINT pos, BOOL isRight) {this->onDown(pos, isRight);});
 	onMouseMove.add([this](POINT pos) {this->onMove(pos);});
 	onMouseUp.add([this](POINT pos, BOOL isRight) {this->onUp(pos, isRight);});
-	// Ling 传进来的是已经换算成滚动距离的 space（一格 = 60 逻辑像素 × dpi），
-	// shape 只关心方向，这里按符号还原成 ±WHEEL_DELTA
 	onMouseWheel.add([this](POINT pos, float space) {
-		// Ling 的滚轮事件不带修饰键状态，自己查：按住 Ctrl 是缩放窗口，不是调 shape
-		if (GetKeyState(VK_CONTROL) & 0x8000) {
-			// 一格 10%，按当前倍数等比走，放大和缩小的手感才对称
-			applyScale(scale * (space > 0 ? 1.1f : 1.f / 1.1f), pos);
-			return;
-		}
-		if (!shapeHover) return;
-		auto imgPos = toImgPos(pos);
-		shapeHover->mouseWheel((float)imgPos.x, (float)imgPos.y, space > 0 ? (short)WHEEL_DELTA : (short)-WHEEL_DELTA);
+		// Keep a stroke in one coordinate system until the mouse is released.
+		if (isMouseDown || space == 0.f) return;
+		// Ling reports 60 logical pixels per wheel notch; preserve fractional and multiple notches.
+		const float steps = space / (60.f * dpi);
+		applyScale(scale * std::pow(1.1f, steps), pos);
 	});
 	onTimer.add([this](UINT id) {this->onTimerCB(id);});
 	onKeyDown.add([this](UINT key) {this->onKey(key);});
@@ -166,6 +160,7 @@ void WinPin::applyScale(float newScale, POINT anchor)
 	// 停手 800 毫秒后由定时器把倍数提示收掉。同一个 id 再调一次 SetTimer 就是重新计时，
 	// 所以连续滚动期间它一直不会触发
 	setTimer(800, 101);
+	updateLineCursor();
 	layoutTools();
 	refresh();
 }
@@ -300,7 +295,7 @@ void WinPin::onMinMaxInfo(MINMAXINFO* mmi)
 	mmi->ptMaxSize.y = h;
 	mmi->ptMinTrackSize.x = 1;
 	mmi->ptMinTrackSize.y = 1;
-	// Ctrl+滚轮放大后窗口可以比屏幕大（超出的部分自然被裁掉）。默认的最大跟踪尺寸只有
+	// 滚轮放大后窗口可以比屏幕大（超出的部分自然被裁掉）。默认的最大跟踪尺寸只有
 	// 主显示器那么大，不放开的话 SetWindowPos 会被系统按住，放大就到此为止了
 	mmi->ptMaxTrackSize.x = 20000;
 	mmi->ptMaxTrackSize.y = 20000;
@@ -314,7 +309,7 @@ void WinPin::onDown(POINT pos, BOOL isRight)
 	if (isRight) {
 		// 右键在"有工具条"和"只剩图"这两个状态之间来回切。
 		// 藏着的时候（上一次右键收起来的）就把它请回来。位置先重排一遍：
-		// 藏着的这段时间里窗口可能被 Ctrl+滚轮缩放过，工具条的落点跟着变了
+		// 藏着的这段时间里窗口可能被 滚轮缩放过，工具条的落点跟着变了
 		if (!IsWindowVisible(toolMain->hwnd)) {
 			layoutTools();
 			toolMain->show();
@@ -506,6 +501,11 @@ void WinPin::setEditingText(ShapeText* shape)
 void WinPin::onToolStyleChanged()
 {
 	if (editingText) editingText->applyStyle();
+	updateLineCursor();
+}
+
+void WinPin::updateLineCursor()
+{
 	POINT pos{};
 	if (toolMain->curId == L"line" && GetCursorPos(&pos) && WindowFromPoint(pos) == hwnd) setCursor();
 }
@@ -592,7 +592,7 @@ void WinPin::restoreWindowState(HWND foregroundBeforeDialog)
 // 用 d2d->deviceContext 做离屏是安全的，SetTarget → BeginDraw → EndDraw → SetTarget(nullptr) 在本函数内闭环。
 bool WinPin::getImagePixels(std::vector<BYTE>& pixels, D2D1_SIZE_U& size)
 {
-	// 尺寸一律取底图的像素尺寸，不用窗口的 w/h —— Ctrl+滚轮缩放改的是窗口，
+	// 尺寸一律取底图的像素尺寸，不用窗口的 w/h —— 滚轮缩放改的是窗口，
 	// 导出的图该始终是原始大小。调用方也得按这个尺寸解释 pixels，所以用出参交出去
 	auto imgSize = getImgSize();
 	if (imgSize.width == 0 || imgSize.height == 0) return false;

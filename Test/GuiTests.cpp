@@ -62,6 +62,12 @@ namespace {
         return GetCursor();
     }
 
+    void wheel(WinPin* pin, POINT pos, short delta)
+    {
+        ClientToScreen(pin->hwnd, &pos);
+        SendMessage(pin->hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, static_cast<WORD>(delta)), MAKELPARAM(pos.x, pos.y));
+    }
+
     int cursorSize(HCURSOR cursor)
     {
         ICONINFO info{};
@@ -207,6 +213,27 @@ void testGuiFeatures()
     for (auto window : Ling::App::get()->windows) if (dynamic_cast<WinPin*>(window)) ++pinCount;
     require(pinCount == 1, "Repeated key events must not create duplicate pins");
     pump();
+    const auto originalImage = pin->screenImg.Get();
+    POINT anchor{ 90, 60 }, screenAnchor = anchor;
+    ClientToScreen(pin->hwnd, &screenAnchor);
+    wheel(pin, anchor, WHEEL_DELTA);
+    require(std::abs(pin->scale - 1.1f) < 0.0001f, "Plain wheel up must enlarge a pin without Ctrl");
+    RECT zoomedRect{};
+    GetWindowRect(pin->hwnd, &zoomedRect);
+    require(zoomedRect.right - zoomedRect.left == 660, "Wheel zoom must resize the pin window");
+    require(std::abs(zoomedRect.left + std::lround(anchor.x * pin->scale) - screenAnchor.x) <= 1
+        && std::abs(zoomedRect.top + std::lround(anchor.y * pin->scale) - screenAnchor.y) <= 1,
+        "Zoom must preserve the image point under the pointer");
+    require(pin->screenImg.Get() == originalImage && pin->screenImg->GetPixelSize().width == 600,
+        "Zoom must keep the original image pixels and dimensions");
+    wheel(pin, POINT{ 99, 66 }, -WHEEL_DELTA);
+    require(std::abs(pin->scale - 1.f) < 0.0001f, "Wheel down must reverse wheel up");
+    wheel(pin, anchor, WHEEL_DELTA / 2);
+    require(std::abs(pin->scale - std::sqrt(1.1f)) < 0.0001f, "High-resolution wheel deltas must preserve partial steps");
+    wheel(pin, anchor, -WHEEL_DELTA / 2);
+    require(std::abs(pin->scale - 1.f) < 0.0001f, "Partial wheel steps must reverse symmetrically");
+    wheel(pin, anchor, 0);
+    require(std::abs(pin->scale - 1.f) < 0.0001f, "Zero wheel delta must not zoom");
     pin->close();
     pump();
 
@@ -244,6 +271,8 @@ void testGuiFeatures()
     auto drawingCursor = requestCursor(pin);
     pin->onMouseDown(POINT{ 40, 40 }, false);
     require(requestCursor(pin) == drawingCursor, "The dot cursor must remain active while drawing a line");
+    wheel(pin, POINT{ 40, 40 }, WHEEL_DELTA);
+    require(std::abs(pin->scale - 1.f) < 0.0001f, "Wheel input must not change coordinates during a stroke");
     pin->onMouseMove(POINT{ 150, 100 });
     pin->onMouseUp(POINT{ 150, 100 }, false);
     require(pin->history->shapes.size() == 1 && dynamic_cast<ShapeLine*>(pin->history->shapes[0].get()),
@@ -285,6 +314,29 @@ void testGuiFeatures()
         "Undo must remove only the latest completed stroke");
     pin->history->redo();
     require(!pin->history->shapes.back()->isUndo, "Redo must restore the latest independent stroke");
+    pin->toolSub->setShapeSliderVal(L"line", 8.f * pin->toolSub->dpi);
+    const auto configuredWidth = pin->toolSub->getSliderVal();
+    const auto normalCursorSize = cursorSize(requestCursor(pin));
+    wheel(pin, POINT{ 200, 100 }, WHEEL_DELTA * 2);
+    require(std::abs(pin->scale - 1.21f) < 0.0001f, "Wheel zoom must work with line selected and multiple notches");
+    require(cursorSize(requestCursor(pin)) > normalCursorSize, "The dot cursor must follow the displayed stroke scale");
+    require(pin->toolSub->getSliderVal() == configuredWidth && pin->history->shapes.size() == 3,
+        "Wheel zoom must not change the pen width or annotation history");
+    require(renderShape(firstLine, imageSize) == firstPixels, "Zoom must keep completed annotation pixels unchanged");
+    waitForNextStroke();
+    {
+        ScopedShift shift;
+        pin->onMouseDown(POINT{ 242, 121 }, false);
+        pin->onMouseMove(POINT{ 363, 182 });
+        pin->onMouseUp(POINT{ 363, 182 }, false);
+    }
+    require(pin->history->shapes.size() == 4, "Drawing on a zoomed image must add an independent stroke");
+    const auto zoomedStroke = renderShape(pin->history->shapes.back().get(), imageSize);
+    require(zoomedStroke[(125 * imageSize.width + 250) * 4 + 3] != 0,
+        "Drawing at zoomed coordinates must map back to original image coordinates");
+    wheel(pin, POINT{ 242, 121 }, -WHEEL_DELTA * 2);
+    require(std::abs(pin->scale - 1.f) < 0.0001f, "Multiple wheel steps must reverse symmetrically");
+    pin->toolSub->setShapeSliderVal(L"line", originalLineWidth);
     snapshot(pin->toolSub.get(), L"gui-line-controls.bmp");
     snapshot(pin->toolMain.get(), L"gui-main-toolbar.bmp");
     pin->close();
