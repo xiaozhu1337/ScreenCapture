@@ -4,6 +4,7 @@
 #include "../Shape/ShapeBase.h"
 #include "../Shape/ShapeText.h"
 #include "WinPin.h"
+#include "PinCanvas.h"
 #include "../Setting.h"
 #include "../Tool/ToolPlacement.h"
 #include "WinCap.h"
@@ -152,10 +153,13 @@ void WinPin::applyScale(float newScale, POINT anchor)
 	auto imgX = anchor.x / scale;
 	auto imgY = anchor.y / scale;
 	scale = newScale;
-	applyWinSize();
-	// setPosition 内部会 SetWindowPos，随后的 WM_MOVE 会带出 onMoved -> layoutTools
-	setPosition(x + anchor.x - static_cast<int>(std::lround(imgX * scale)),
-		y + anchor.y - static_cast<int>(std::lround(imgY * scale)));
+	x += anchor.x - static_cast<int>(std::lround(imgX * scale));
+	y += anchor.y - static_cast<int>(std::lround(imgY * scale));
+	w = static_cast<float>(std::max(1L, std::lround(sz.width * scale)));
+	h = static_cast<float>(std::max(1L, std::lround(sz.height * scale)));
+	// Publish position and size together so WM_SIZE paints the final geometry.
+	SetWindowPos(hwnd, nullptr, x, y, static_cast<int>(w), static_cast<int>(h),
+		SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
 	scaleTip = Ling::D2D::get()->makeTextLayout(std::format(L"{}%", static_cast<int>(std::lround(scale * 100.f))), 11.f * dpi);
 	// 停手 800 毫秒后由定时器把倍数提示收掉。同一个 id 再调一次 SetTimer 就是重新计时，
 	// 所以连续滚动期间它一直不会触发
@@ -247,8 +251,7 @@ void WinPin::onCreated()
     disableBorderRadius();
     auto d2d = Ling::D2D::get();
     // 画布铺满窗口，走 swap chain（双缓冲）后端，避免拖动 shape 时整帧闪烁
-    canvas = body->makeChild<Ling::Canvas>();
-    canvas->enableSwapChain();
+    canvas = body->makeChild<PinCanvas>();
     canvas->setSizePercent(100.f, 100.f);
     d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(0x1677ff), borderBrush.GetAddressOf());
     d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(0x000000, 0.46f), brushTipBg.GetAddressOf());

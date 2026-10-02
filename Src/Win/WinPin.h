@@ -7,6 +7,7 @@ class ToolSub;
 class ShapeBase;
 class ShapeText;
 class History;
+class PinCanvas;
 class WinPin : public Ling::WinBase
 {
 public:
@@ -84,7 +85,7 @@ private:
 private:
 	// 整个窗口内容都画在这块画布上，走 swap chain 后端：贴图窗口拖动 shape 时每帧重绘，
 	// 单缓冲的合成表面会被采样到"擦干净→逐个重画"的中间态，表现为 shape 和边框整帧闪掉。
-	Ling::Canvas* canvas{ nullptr };
+	PinCanvas* canvas{ nullptr };
 	// 文本输入框与当前正在编辑的 ShapeText。非空表示"编辑中"：此时落在文本框里的
 	// 鼠标事件、以及所有键盘事件都归 TextBox，WinPin 自己的那套要让路。
 	Ling::TextBox* textBox{ nullptr };

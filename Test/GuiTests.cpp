@@ -4,6 +4,7 @@
 #include "History.h"
 #include "Win/WinCap.h"
 #include "Win/WinPin.h"
+#include "Win/PinCanvas.h"
 #include "Win/WinSetting.h"
 #include "Win/Shortcut.h"
 #include "Tool/ToolCap.h"
@@ -214,10 +215,15 @@ void testGuiFeatures()
     require(pinCount == 1, "Repeated key events must not create duplicate pins");
     pump();
     const auto originalImage = pin->screenImg.Get();
+    auto pinCanvas = dynamic_cast<PinCanvas*>(pin->body->children.front().get());
+    require(pinCanvas && pinCanvas->visual.Brush(), "Pin canvas must display a presented frame");
+    const auto originalSurface = pinCanvas->visual.Brush();
     POINT anchor{ 90, 60 }, screenAnchor = anchor;
     ClientToScreen(pin->hwnd, &screenAnchor);
     wheel(pin, anchor, WHEEL_DELTA);
     require(std::abs(pin->scale - 1.1f) < 0.0001f, "Plain wheel up must enlarge a pin without Ctrl");
+    require(pinCanvas->visual.Brush() == originalSurface,
+        "Small zoom changes must reuse the displayed buffer without resizing or clearing its surface");
     RECT zoomedRect{};
     GetWindowRect(pin->hwnd, &zoomedRect);
     require(zoomedRect.right - zoomedRect.left == 660, "Wheel zoom must resize the pin window");
@@ -234,6 +240,19 @@ void testGuiFeatures()
     require(std::abs(pin->scale - 1.f) < 0.0001f, "Partial wheel steps must reverse symmetrically");
     wheel(pin, anchor, 0);
     require(std::abs(pin->scale - 1.f) < 0.0001f, "Zero wheel delta must not zoom");
+    for (int i = 0; i < 8; ++i) {
+        wheel(pin, anchor, WHEEL_DELTA);
+        require(pinCanvas->visual.Brush() != nullptr, "Growing the buffer must always leave a presented frame attached");
+    }
+    const auto grownSurface = pinCanvas->visual.Brush();
+    require(grownSurface != originalSurface, "Zoom beyond buffer capacity must publish a new painted surface");
+    for (int i = 0; i < 8; ++i) {
+        wheel(pin, anchor, -WHEEL_DELTA);
+        require(pinCanvas->visual.Brush() == grownSurface,
+            "Continuous shrinking must retain buffer capacity and avoid rebuilding the displayed surface");
+    }
+    require(std::abs(pin->scale - 1.f) < 0.0001f && pin->screenImg.Get() == originalImage,
+        "Continuous zoom must preserve the original image and reverse symmetrically");
     pin->close();
     pump();
 
