@@ -506,6 +506,8 @@ void WinPin::setEditingText(ShapeText* shape)
 void WinPin::onToolStyleChanged()
 {
 	if (editingText) editingText->applyStyle();
+	POINT pos{};
+	if (toolMain->curId == L"line" && GetCursorPos(&pos) && WindowFromPoint(pos) == hwnd) setCursor();
 }
 
 void WinPin::onKey(UINT key)
@@ -664,6 +666,10 @@ BOOL WinPin::setCursor()
 	}
 	if (toolMain->curId == L"") {
 		SetCursor(LoadCursor(nullptr, IDC_SIZEALL));
+		return TRUE;
+	}
+	if (toolMain->curId == L"line") {
+		SetCursor(lineCursor.get(toolSub->getSliderVal() * scale));
 		return TRUE;
 	}
 	if (shapeHover) {

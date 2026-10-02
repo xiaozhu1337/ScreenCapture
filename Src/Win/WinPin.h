@@ -1,5 +1,6 @@
 #pragma once
 #include <include/Ling.h>
+#include "LineCursor.h"
 
 class ToolMain;
 class ToolSub;
@@ -103,4 +104,5 @@ private:
 	// 上一次按下是不是新建了一个留得住的元素（现在只有序号：按一下就成形，
 	// 别的都在抬手时按"没画出东西"清掉了）。双击的前半段放下的东西不该被复制进剪切板
 	bool prevPressCreatedShape{ false };
+	LineCursor lineCursor;
 };

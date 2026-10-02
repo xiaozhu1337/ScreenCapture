@@ -49,6 +49,34 @@ namespace {
         } while (GetTickCount64() < until);
     }
 
+    void waitForNextStroke()
+    {
+        // Use the same clock as double-click detection; Sleep alone can round to its boundary.
+        const auto until = GetTickCount64() + GetDoubleClickTime() + 1;
+        while (GetTickCount64() <= until) Sleep(1);
+    }
+
+    HCURSOR requestCursor(WinPin* pin)
+    {
+        SendMessage(pin->hwnd, WM_SETCURSOR, reinterpret_cast<WPARAM>(pin->hwnd), MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
+        return GetCursor();
+    }
+
+    int cursorSize(HCURSOR cursor)
+    {
+        ICONINFO info{};
+        require(GetIconInfo(cursor, &info), "Cursor bitmap must be available");
+        BITMAP bitmap{};
+        const auto result = GetObject(info.hbmColor, sizeof(bitmap), &bitmap);
+        if (info.hbmColor) DeleteObject(info.hbmColor);
+        if (info.hbmMask) DeleteObject(info.hbmMask);
+        require(result && !info.fIcon && bitmap.bmWidth == bitmap.bmHeight,
+            "Line cursor must be a square color cursor");
+        require(info.xHotspot == bitmap.bmWidth / 2 && info.yHotspot == bitmap.bmHeight / 2,
+            "The line cursor hotspot must stay at the dot center");
+        return bitmap.bmWidth;
+    }
+
     template<typename T> T* findWindow()
     {
         for (auto window : Ling::App::get()->windows) {
@@ -204,7 +232,18 @@ void testGuiFeatures()
         "Promoted line must select line and display its style controls");
     require(pin->toolMain->y >= region.top && pin->toolSub->y + pin->toolSub->h <= work.bottom,
         "Main and sub toolbar group must stay visible at the bottom");
+    const auto originalLineWidth = pin->toolSub->getSliderVal();
+    pin->toolSub->setShapeSliderVal(L"line", 2.f * pin->toolSub->dpi);
+    auto thinCursor = requestCursor(pin);
+    require(thinCursor && thinCursor != LoadCursor(nullptr, IDC_CROSS), "Line drawing must use a dot cursor");
+    const auto thinCursorSize = cursorSize(thinCursor);
+    require(requestCursor(pin) == thinCursor, "An unchanged line width must reuse its cursor");
+    pin->toolSub->setShapeSliderVal(L"line", 16.f * pin->toolSub->dpi);
+    require(cursorSize(requestCursor(pin)) > thinCursorSize, "Increasing line width must enlarge the dot cursor");
+    pin->toolSub->setShapeSliderVal(L"line", originalLineWidth);
+    auto drawingCursor = requestCursor(pin);
     pin->onMouseDown(POINT{ 40, 40 }, false);
+    require(requestCursor(pin) == drawingCursor, "The dot cursor must remain active while drawing a line");
     pin->onMouseMove(POINT{ 150, 100 });
     pin->onMouseUp(POINT{ 150, 100 }, false);
     require(pin->history->shapes.size() == 1 && dynamic_cast<ShapeLine*>(pin->history->shapes[0].get()),
@@ -216,7 +255,7 @@ void testGuiFeatures()
     require(std::any_of(firstPixels.begin(), firstPixels.end(), [](BYTE value) { return value != 0; }),
         "The completed line must render visible pixels");
     // No mouse move between release and the next press: a completed stroke must not remain active.
-    Sleep(GetDoubleClickTime() + 1);
+    waitForNextStroke();
     {
         ScopedShift shift;
         pin->onMouseDown(POINT{ 250, 40 }, false);
@@ -226,14 +265,14 @@ void testGuiFeatures()
     require(pin->history->shapes.size() == 2, "Each mouse press must create a separate line stroke");
     require(renderShape(firstLine, imageSize) == firstPixels, "Drawing another stroke must not change the completed line");
     // A new stroke may start at an old endpoint and cross an old line.
-    Sleep(GetDoubleClickTime() + 1);
+    waitForNextStroke();
     pin->onMouseMove(POINT{ 150, 100 });
     pin->onMouseDown(POINT{ 150, 100 }, false);
     pin->onMouseMove(POINT{ 40, 40 });
     pin->onMouseUp(POINT{ 40, 40 }, false);
     require(pin->history->shapes.size() == 3, "Starting on an old line must draw a new independent stroke");
     require(renderShape(firstLine, imageSize) == firstPixels, "Overlapping strokes must leave the old line unchanged");
-    Sleep(GetDoubleClickTime() + 1);
+    waitForNextStroke();
     pin->onMouseDown(POINT{ 400, 140 }, false);
     pin->onMouseUp(POINT{ 400, 140 }, false);
     require(pin->history->shapes.size() == 3 && pin->history->shapes.front().get() == firstLine,
