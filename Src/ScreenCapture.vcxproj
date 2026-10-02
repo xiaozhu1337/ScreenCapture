@@ -229,6 +229,7 @@
     <ClCompile Include="Win\WinSettingCommon.cpp" />
     <ClCompile Include="Win\WinSetting.cpp" />
     <ClCompile Include="Win\WinSettingShortcut.cpp" />
+    <ClCompile Include="Win\WinSettingToolbar.cpp" />
     <ClCompile Include="Win\CapVideo.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -273,6 +274,10 @@
     <ClInclude Include="Win\WinSettingCommon.h" />
     <ClInclude Include="Win\WinSetting.h" />
     <ClInclude Include="Win\WinSettingShortcut.h" />
+    <ClInclude Include="Win\WinSettingToolbar.h" />
+    <ClInclude Include="Win\Shortcut.h" />
+    <ClInclude Include="Tool\ToolPlacement.h" />
+    <ClInclude Include="Tool\ToolRegistry.h" />
     <ClInclude Include="Win\CapVideo.h" />
     <ClInclude Include="Win\VideoGif.hpp" />
     <ClInclude Include="Win\VideoMp4.hpp" />

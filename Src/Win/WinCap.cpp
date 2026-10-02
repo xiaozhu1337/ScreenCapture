@@ -583,13 +583,13 @@ void WinCap::enterLiveStage()
     refresh();
 }
 
-void WinCap::startPin()
+void WinCap::startPin(const std::wstring& initialTool)
 {
     if (!cutMask->hasRect()) return;
     auto& maskRect = cutMask->maskRect;
     // WinPin 构造里会回头来取 getCutImg()，所以得先把它建起来再关自己
     WinPin::init(int(maskRect.left) + x, int(maskRect.top) + y,
-        int(maskRect.right - maskRect.left), int(maskRect.bottom - maskRect.top));
+        int(maskRect.right - maskRect.left), int(maskRect.bottom - maskRect.top), initialTool);
     close();
 }
 

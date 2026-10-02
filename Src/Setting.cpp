@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include <include/Ling.h>
 #include "Setting.h"
+#include "Tool/ToolRegistry.h"
 #include "Util.h"
 #include "Lang.h"
 #include "Win/WinCap.h"
@@ -113,6 +114,41 @@ void Setting::setToolbarBottom(bool value)
         configObj.SetNamedValue(L"common", common);
     }
     common.SetNamedValue(L"toolbarBottom", JsonValue::CreateBooleanValue(value));
+    save();
+}
+
+std::vector<std::wstring> Setting::getCaptureToolbar()
+{
+    auto toolbar = configObj.GetNamedObject(L"toolbar", nullptr);
+    if (!toolbar) return defaultCaptureToolbar();
+    auto items = toolbar.GetNamedArray(L"capture", nullptr);
+    if (!items) return defaultCaptureToolbar();
+    std::vector<std::wstring> result;
+    for (const auto& value : items) {
+        if (value.ValueType() != JsonValueType::String) continue;
+        std::wstring id{ value.GetString() };
+        if (findCaptureTool(id) && std::find(result.begin(), result.end(), id) == result.end()) {
+            result.push_back(id);
+        }
+    }
+    return items.Size() && result.empty() ? defaultCaptureToolbar() : result;
+}
+
+void Setting::setCaptureToolbar(const std::vector<std::wstring>& items)
+{
+    auto toolbar = configObj.GetNamedObject(L"toolbar", nullptr);
+    if (!toolbar) {
+        toolbar = JsonObject();
+        configObj.SetNamedValue(L"toolbar", toolbar);
+    }
+    JsonArray values;
+    std::vector<std::wstring> seen;
+    for (const auto& id : items) {
+        if (!findCaptureTool(id) || std::find(seen.begin(), seen.end(), id) != seen.end()) continue;
+        seen.push_back(id);
+        values.Append(JsonValue::CreateStringValue(id));
+    }
+    toolbar.SetNamedValue(L"capture", values);
     save();
 }
 

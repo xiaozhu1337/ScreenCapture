@@ -10,7 +10,7 @@ class WinPin : public Ling::WinBase
 {
 public:
 	~WinPin();
-	static void init(int x, int y, int w, int h);
+	static void init(int x, int y, int w, int h, const std::wstring& initialTool = L"");
 	// 底图不来自 WinCap 的截屏，而是外部给的一块 BGRA、top-down、行紧凑（步长 = w*4）像素。
 	// 滚动截图（WinLong）拼出来的长图走这条路进贴图窗口。
 	static void initFromData(int x, int y, int w, int h, std::vector<BYTE>& data);
@@ -104,4 +104,3 @@ private:
 	// 别的都在抬手时按"没画出东西"清掉了）。双击的前半段放下的东西不该被复制进剪切板
 	bool prevPressCreatedShape{ false };
 };
-

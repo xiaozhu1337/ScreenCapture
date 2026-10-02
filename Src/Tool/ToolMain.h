@@ -11,6 +11,7 @@ public:
 	float getBtnCenterX();
 	// 取消当前选中：清空 curId、把所有按钮恢复常态配色，并重排工具组（curId 空了 ToolSub 会隐藏）。
 	void cancelSelect();
+	void selectTool(const std::wstring& id);
 public:
 	std::wstring curId;
 private:
@@ -34,4 +35,3 @@ private:
 	// 悬停提示。要 hwnd，所以在 onCreated 里才建得起来
 	std::unique_ptr<Tip> tip;
 };
-

@@ -20,6 +20,8 @@ public:
 	bool getAutoStart();
 	bool getToolbarBottom();
 	void setToolbarBottom(bool value);
+	std::vector<std::wstring> getCaptureToolbar();
+	void setCaptureToolbar(const std::vector<std::wstring>& items);
 	std::wstring getLang();
 	void setLang(const std::wstring& lang);
 	void initShortcutKeys();

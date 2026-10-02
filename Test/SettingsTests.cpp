@@ -1,10 +1,14 @@
 #include "pch.h"
 #include "Setting.h"
 #include "Lang.h"
+#include "App.h"
 #include "Win/Shortcut.h"
 #include "Tool/ToolPlacement.h"
+#include "Tool/ToolRegistry.h"
 #include <iostream>
 #include <stdexcept>
+
+void testGuiFeatures();
 
 namespace {
     void require(bool value, const char* message)
@@ -60,9 +64,30 @@ namespace {
         auto outside = positionToolBar({ -900, 4000, -800, 5000 }, work, { 300, 60 }, 60, 5, { 3, 3 }, true);
         require(outside.x == 0 && outside.y == 940, "Offscreen selection must clamp toolbar to work area");
     }
+
+    void testToolbarConfig()
+    {
+        require(Setting::get()->getCaptureToolbar() == defaultCaptureToolbar(), "Old configurations must keep default toolbar");
+        Setting::get()->setCaptureToolbar({ L"line", L"line", L"unknown", L"mark" });
+        Setting::dispose();
+        Setting::init();
+        require(Setting::get()->getCaptureToolbar() == std::vector<std::wstring>{ L"line", L"mark" },
+            "Toolbar should persist order and exclude duplicates and unknown tools");
+        Setting::get()->setCaptureToolbar({});
+        Setting::dispose();
+        Setting::init();
+        require(Setting::get()->getCaptureToolbar().empty(), "Removing all optional items should persist");
+        auto toolbar = Setting::get()->getConfigObj().GetNamedObject(L"toolbar");
+        JsonArray invalid;
+        invalid.Append(JsonValue::CreateNumberValue(123));
+        invalid.Append(JsonValue::CreateStringValue(L"unknown"));
+        toolbar.SetNamedValue(L"capture", invalid);
+        require(Setting::get()->getCaptureToolbar() == defaultCaptureToolbar(), "Corrupt menu should recover defaults");
+        Setting::get()->setCaptureToolbar(defaultCaptureToolbar());
+    }
 }
 
-int main()
+int main(int argc, char** argv)
 {
     wchar_t executable[MAX_PATH]{};
     GetModuleFileName(nullptr, executable, MAX_PATH);
@@ -70,20 +95,32 @@ int main()
     require(!std::filesystem::exists(config), "Tests require an isolated target directory without config.json");
     Ling::Util::saveFile(config.wstring(), LR"({"common":{"language":"zh-CN"},"shortcutKey":{"cap":"Ctrl+Alt+A"}})");
     int result = 0;
+    const bool gui = argc > 1 && std::string(argv[1]) == "--gui=true";
     try {
-        require(Ling::init(), "Ling initialization failed");
-        Setting::init();
-        Lang::init();
-        testShortcuts();
-        testPlacement();
-        std::cout << "Shortcut and toolbar placement tests passed\n";
+        if (gui) {
+            App::init();
+            testGuiFeatures();
+            std::cout << "Native GUI feature tests passed\n";
+        }
+        else {
+            require(Ling::init(), "Ling initialization failed");
+            Setting::init();
+            Lang::init();
+            testShortcuts();
+            testPlacement();
+            testToolbarConfig();
+            std::cout << "Shortcut, placement and menu configuration tests passed\n";
+        }
     }
     catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         result = 1;
     }
-    Lang::dispose();
-    Setting::dispose();
+    if (gui) App::dispose();
+    else {
+        Lang::dispose();
+        Setting::dispose();
+    }
     Ling::dispose();
     std::filesystem::remove(config);
     return result;

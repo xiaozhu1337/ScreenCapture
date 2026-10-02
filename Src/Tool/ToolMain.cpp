@@ -4,6 +4,7 @@
 #include "../Lang.h"
 #include "../Tip.h"
 #include "ToolMain.h"
+#include "ToolRegistry.h"
 #include "ToolSub.h"
 
 ToolMain::ToolMain(WinPin* win) : Ling::WinBase(), win(win)
@@ -159,19 +160,26 @@ void ToolMain::onClick(Ling::Button* btn)
 		cancelSelect();
 		return;
 	}
+	selectTool(btn->id);
+}
+
+void ToolMain::selectTool(const std::wstring& id)
+{
+	auto definition = findCaptureTool(id);
+	if (!definition || !definition->drawing) return;
 	for (auto b:btns)
 	{
 		if (b->id == curId)
 		{
 			applyNormalStyle(b);
 		}
-		if (b->id == btn->id)
+		if (b->id == id)
 		{
 			b->setBg(0xe6f4ffff);
 			b->setHoverBg(0xe6f4ffff);
 		}
 	}
-	curId = btn->id;
+	curId = id;
 	if (curId == L"rect") {
 		win->toolSub->showRectTools();
 	}

@@ -126,6 +126,7 @@ WinSettingShortcut::WinSettingShortcut(Ling::WinBase* parent):Ling::Node(parent)
 
         if (key == L"pin") {
             auto clear = box->makeChild<Ling::Button>();
+            clear->setId(L"clearPinShortcut");
             clear->setText(Lang::get(L"shortcut.clear"));
             clear->setSize(56.f, 28.f);
             clear->onClick.add([this, btn](Ling::Button*) {

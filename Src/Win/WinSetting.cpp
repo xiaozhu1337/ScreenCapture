@@ -5,6 +5,7 @@
 #include "WinSetting.h"
 #include "WinSettingCommon.h"
 #include "WinSettingShortcut.h"
+#include "WinSettingToolbar.h"
 #include "WinSettingAbout.h"
 
 std::unique_ptr<WinSetting> winSetting;
@@ -58,6 +59,7 @@ void WinSetting::onCreated()
 	initMenuItems(menuBox);
 
 	content = body->makeChild<WinSettingCommon>();
+	content->setWidth(0.f);
 	content->setFlexGrow(1.0);
 	content->setHeightPercent(100.f);
 	content->setPaddingTop(40.f);
@@ -80,7 +82,7 @@ void WinSetting::onCreated()
 }
 void WinSetting::initMenuItems(Ling::Node* menuBox)
 {
-	for (size_t i = 0; i < 3; i++)
+	for (size_t i = 0; i < 4; i++)
 	{
 		auto menuItem = menuBox->makeChild<Ling::Button>();
 		menuItem->setFontSize(14.f);
@@ -99,6 +101,9 @@ void WinSetting::initMenuItems(Ling::Node* menuBox)
 				menuItem->setText(Lang::get(L"setting.shortcut"));
 			}
 			else if (i == 2) {
+				menuItem->setText(Lang::get(L"setting.toolbar"));
+			}
+			else if (i == 3) {
 				menuItem->setText(Lang::get(L"setting.about"));
 			}
 		}
@@ -134,8 +139,12 @@ void WinSetting::onMenuItemClick(Ling::Button* menuItem)
 		content = body->makeChild<WinSettingShortcut>();
 	}
 	else if (menuIndex == 2) {
+		content = body->makeChild<WinSettingToolbar>();
+	}
+	else if (menuIndex == 3) {
 		content = body->makeChild<WinSettingAbout>();
 	}
+	content->setWidth(0.f);
 	content->setFlexGrow(1.0);
 	content->setHeightPercent(100.f);
 	content->setPadding(20.f,40.f,20.f,40.f);
@@ -153,10 +162,8 @@ LRESULT WinSetting::onHitTest(const POINT pos)
 	if (pt.x > 0 && pt.y > 0 && pt.x < w - 32 * dpi && pt.y < 40 * dpi) {
 		return HTCAPTION;
 	}
-	if (pt.x > 0 && pt.y > 40*4*dpi && pt.x < 120 * dpi && pt.y < h) {
+	if (pt.x > 0 && pt.y > 40 * (menus.size() + 1) * dpi && pt.x < 120 * dpi && pt.y < h) {
 		return HTCAPTION;
 	}
 	return HTCLIENT;
 }
-
-

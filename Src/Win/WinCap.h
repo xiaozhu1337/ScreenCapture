@@ -28,7 +28,7 @@ public:
 	void restoreWin();
 	// 下面都是给工具条用的门面 ————————————————
 	// ToolCap
-	void startPin();
+	void startPin(const std::wstring& initialTool = L"");
 	void startLong();
 	void startVideo();
 	void startOcr();
@@ -106,4 +106,3 @@ private:
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushText;
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> crossBrush;
 };
-

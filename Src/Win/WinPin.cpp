@@ -230,11 +230,12 @@ WinPin::~WinPin()
 {
 }
 
-void WinPin::init(int x, int y, int w, int h)
+void WinPin::init(int x, int y, int w, int h, const std::wstring& initialTool)
 {
 	auto ptr = new WinPin(x,y,w,h);
 	std::unique_ptr<WinPin> winPin{ ptr };
 	ptr->createNativeWindow(WS_EX_TOPMOST| WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_POPUP);
+	if (!initialTool.empty()) ptr->toolMain->selectTool(initialTool);
 	winPins.push_back(std::move(winPin));
 }
 

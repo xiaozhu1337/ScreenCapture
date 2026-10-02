@@ -67,7 +67,8 @@
     "language": "Language:",
     "getMoreLang": "get more language",
     "toolbarBottom": "Keep editing toolbar at bottom:",
-    "toolbarBottomHint": "When space below is limited, place the toolbar inside the bottom of the selection."
+    "toolbarBottomHint": "When space below is limited, place the toolbar\ninside the bottom of the selection.",
+    "toolbar": "Toolbar"
   },
   "about": {
     "version": "Version:",
@@ -83,7 +84,7 @@
     "pin": "Pin selection:",
     "unset": "Not set",
     "clear": "Clear",
-    "pinHint": "After selecting a region, press the pin shortcut to pin it. Default: F3. Clear to disable.",
+    "pinHint": "After selecting a region, press the shortcut to pin it.\nDefault: F3. Clear to disable.",
     "invalid": "This shortcut is invalid or conflicts with an existing shortcut. Choose another combination."
   },
   "long": {
@@ -98,5 +99,14 @@
     "found": "New version available",
     "tip": "The new version has been downloaded. Click OK to restart and finish the upgrade.",
     "noPermission": "The program folder is not writable, so it can not update itself. Click OK to open the download page."
+  },
+  "toolbar": {
+    "title": "Toolbar after selecting a region",
+    "hint": "Add, remove or reorder items for the next capture.\nDrawing items open annotation with that tool selected.\nClose, Save and Copy always remain available.",
+    "reset": "Reset defaults",
+    "up": "Up",
+    "down": "Down",
+    "add": "Add",
+    "remove": "Remove"
   }
 }
