@@ -3,6 +3,7 @@
 #include "../Setting.h"
 #include "WinSetting.h"
 #include "WinSettingShortcut.h"
+#include "Shortcut.h"
 
 namespace {
     bool isShortcutModifierKey(const std::wstring& key)
@@ -97,7 +98,7 @@ namespace {
 
 WinSettingShortcut::WinSettingShortcut(Ling::WinBase* parent):Ling::Node(parent)
 {
-    std::vector<std::wstring> keys = { L"cap" };
+    std::vector<std::wstring> keys = { L"cap", L"pin" };
     for (auto& key:keys)
     {
         auto box = makeChild<Ling::Node>();
@@ -113,19 +114,37 @@ WinSettingShortcut::WinSettingShortcut(Ling::WinBase* parent):Ling::Node(parent)
 
         auto btn = box->makeChild<Ling::Button>();
         btn->setId(key);
-        btn->setText(Setting::get()->getShortcutKey(key));
+        auto shortcut = Setting::get()->getShortcutKey(key);
+        btn->setText(shortcut.empty() ? Lang::get(L"shortcut.unset") : shortcut);
         btn->setHeight(28.f);
-        btn->setWidth(120.f);
+        btn->setWidth(160.f);
         btn->setBg(0xFFFFFFFF);
         btn->setHoverBg(0xFFFFFFFF);
         btn->setBorder(1.f, 0xE0E0E0FF);
         btn->onClick.add([this](Ling::Button* btn) {this->onBtnClick(btn);});
         btns.push_back(btn);
 
+        if (key == L"pin") {
+            auto clear = box->makeChild<Ling::Button>();
+            clear->setText(Lang::get(L"shortcut.clear"));
+            clear->setSize(56.f, 28.f);
+            clear->onClick.add([this, btn](Ling::Button*) {
+                endCapture();
+                Setting::get()->setShortcutKey(L"pin", {});
+                btn->setText(Lang::get(L"shortcut.unset"));
+            });
+        }
+
         auto border = makeChild<Ling::Node>();
         border->setHeight(1.f);
         border->setBg(0xE0E0E0FF);
     }
+
+    auto hint = makeChild<Ling::Label>();
+    hint->setText(Lang::get(L"shortcut.pinHint"));
+    hint->setHeight(56.f);
+    hint->setFontSize(12.f);
+    hint->setColor(0x666666FF);
 
     auto weakThis = getWeakThis();
     onKeyDownToken = win->onKeyDown.add([this,weakThis](UINT key) {
@@ -183,7 +202,8 @@ void WinSettingShortcut::endCapture()
     for (auto& btn : btns)
     {
         if (btn->id == curKey) {
-            btn->setText(Setting::get()->getShortcutKey(curKey));
+            auto shortcut = Setting::get()->getShortcutKey(curKey);
+            btn->setText(shortcut.empty() ? Lang::get(L"shortcut.unset") : shortcut);
             break;
         }
     }
@@ -193,11 +213,15 @@ void WinSettingShortcut::endCapture()
 
 void WinSettingShortcut::onKeyDown(UINT key)
 {
+    if (key == VK_ESCAPE) {
+        endCapture();
+        return;
+    }
     auto keyStr = keyToStr(key);
     if (keyStr.empty()) return;
 
     // 当按下的是普通键（非修饰键）时，主动补齐当前按住的修饰键
-    // 因为 Alt 等键走 WM_SYSKEYDOWN，Ling 框架可能不会转发到 onKeyDown
+    // 修饰键可能在点击设置按钮之前就已按住，没有对应的按下事件
     if (!isShortcutModifierKey(keyStr)) {
         auto ensure = [&](int vk, const std::wstring& name) {
             if ((GetAsyncKeyState(vk) & 0x8000) &&
@@ -221,10 +245,27 @@ void WinSettingShortcut::onKeyUp(UINT key)
 {
     if (curKey.empty()) return;
     normalizeShortcutKeys(tempKeys);
-    if (isValidShortcutKeys(tempKeys)) {
+    bool valid = isValidShortcutKeys(tempKeys);
+    if (valid && curKey == L"pin") {
+        auto shortcut = Shortcut::parse(joinShortcutKeys(tempKeys));
+        auto capture = Shortcut::parse(Setting::get()->getShortcutKey(L"cap"));
+        static const std::vector<std::wstring> reserved{ L"Ctrl+H", L"Ctrl+R", L"Ctrl+K", L"Ctrl+P" };
+        valid = shortcut.key != 0 && !capture.matches(shortcut.key, shortcut.modifiers) &&
+            std::find(reserved.begin(), reserved.end(), joinShortcutKeys(tempKeys)) == reserved.end();
+    }
+    if (valid && curKey == L"cap") {
+        auto pin = Shortcut::parse(Setting::get()->getShortcutKey(L"pin"));
+        auto capture = Shortcut::parse(joinShortcutKeys(tempKeys));
+        valid = !pin.matches(capture.key, capture.modifiers);
+    }
+    if (valid) {
         Setting::get()->setShortcutKey(curKey, tempKeys);
     }
     endCapture();
+    if (!valid) {
+        MessageBox(win->hwnd, Lang::get(L"shortcut.invalid").c_str(),
+            Lang::get(L"setting.title").c_str(), MB_OK | MB_ICONWARNING);
+    }
 }
 
 std::wstring WinSettingShortcut::keyToStr(UINT vkCode)

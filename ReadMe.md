@@ -63,6 +63,15 @@ mise exec -- xmake
 
 Debug 可执行文件输出到 `build/windows/x64/debug/ScreenCapture.exe`。两种构建均沿用原项目的 C++20、静态运行库、语言与字体资源、每显示器 DPI 感知和 Segment Heap 设置。应用配置仍使用原来的 `config.json`。
 
+### 功能测试
+
+```powershell
+mise exec -- xmake build ScreenCaptureTests
+& './build/tests/release/ScreenCaptureTests.exe'
+```
+
+测试使用独立输出目录中的临时配置，不修改用户的配置。
+
 ## 命令行
 
 ```

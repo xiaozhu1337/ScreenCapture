@@ -57,13 +57,12 @@ target("gifski")
     end)
 target_end()
 
-target("ScreenCapture")
-    set_kind("binary")
+local function application_sources()
     add_rules("win.sdk.application", "screencapture.dependencies")
     add_deps("Ling", "gifski")
     add_includedirs("Src", "Src/Res", lingdir, gifskidir)
     set_pcxxheader("Src/pch.h")
-    add_files("Src/**.cpp|pch.cpp")
+    add_files("Src/**.cpp|pch.cpp|main.cpp")
     add_files("Src/Win/cgif/*.c")
     add_files("Src/quirc/*.c", {defines = "QUIRC_MAX_REGIONS=65534"})
     add_files("Src/Res/Resource.rc")
@@ -74,4 +73,28 @@ target("ScreenCapture")
                  "mf", "mfreadwrite", "mfplat", "mfuuid", "ntdll", "Userenv",
                  "d2d1", "dwrite", "d3d11", "dxgi", "shcore", "windowscodecs", "ws2_32", "bcrypt")
     add_ldflags("/MANIFEST:EMBED", "/MANIFESTINPUT:Scripts/ScreenCapture.manifest", {force = true})
+    on_load(function (target)
+        import("core.base.bytes")
+        local resources = ""
+        for _, file in ipairs({"Lang/简体中文.zh-CN.json", "Lang/English.en-US.json",
+                               "Src/Res/iconfont.ttf", "Src/Res/logo.ico"}) do
+            resources = resources .. io.readfile(path.join(os.projectdir(), file), {encoding = "binary"})
+        end
+        target:add("mrcflags", "/dSCREEN_CAPTURE_RESOURCE_REVISION=0x" .. hash.sha256(bytes(resources)):sub(1, 16), {force = true})
+    end)
+end
+
+target("ScreenCapture")
+    set_kind("binary")
+    application_sources()
+    add_files("Src/main.cpp")
+target_end()
+
+target("ScreenCaptureTests")
+    set_kind("binary")
+    set_default(false)
+    application_sources()
+    set_values("windows.subsystem", "console")
+    set_targetdir("build/tests/$(mode)")
+    add_files("Test/SettingsTests.cpp")
 target_end()

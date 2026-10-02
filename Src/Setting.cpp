@@ -11,7 +11,7 @@ namespace {
     constexpr int capShortcutMsgId{ 100 };
     // 配置文件的默认内容。空文件、坏 JSON、缺键都拿它兜底，所以这里列出的每一项
     // 都是代码里会直接按名字取的（见 getLang / getAutoStart / initShortcutKeys）
-    constexpr std::wstring_view defaultConfig{ LR"""({"common":{"autoStart":false,"language":"zh-CN"},"shortcutKey":{"cap":"Ctrl+Alt+A"}})""" };
+    constexpr std::wstring_view defaultConfig{ LR"""({"common":{"autoStart":false,"language":"zh-CN"},"shortcutKey":{"cap":"Ctrl+Alt+A","pin":"F3"}})""" };
 }
 
 
@@ -72,14 +72,20 @@ void Setting::setShortcutKey(const std::wstring& type, const std::vector<std::ws
     std::wstring str;
     for (size_t i = 0; i < keys.size(); i++)
     {
-        str += L"+" + keys[i];
+        if (!str.empty()) str += L"+";
+        str += keys[i];
     }
-    str.erase(0,1);
-    auto shortcutKey = configObj.GetNamedObject(L"shortcutKey");
+    auto shortcutKey = configObj.GetNamedObject(L"shortcutKey", nullptr);
+    if (!shortcutKey) {
+        shortcutKey = JsonObject();
+        configObj.SetNamedValue(L"shortcutKey", shortcutKey);
+    }
     shortcutKey.SetNamedValue(type, JsonValue::CreateStringValue(str));
-    auto app = Ling::App::get();
-    app->unRegHotKey(capShortcutMsgId);
-    app->regHotKey(str, capShortcutMsgId);
+    if (type == L"cap") {
+        auto app = Ling::App::get();
+        app->unRegHotKey(capShortcutMsgId);
+        app->regHotKey(str, capShortcutMsgId);
+    }
     save();
 }
 
@@ -88,8 +94,9 @@ std::wstring Setting::getShortcutKey(const std::wstring& type)
     // 一路用带默认值的重载：启动时 ensureDefaults 已经补齐过，这里只是别让运行期
     // 意外（配置被外部改动、问了个没配过的 type）变成一次崩溃
     auto obj = configObj.GetNamedObject(L"shortcutKey", nullptr);
-    if (!obj) return L"";
-    return std::wstring{ obj.GetNamedString(type, L"") };
+    const auto fallback = type == L"pin" ? L"F3" : (type == L"cap" ? L"Ctrl+Alt+A" : L"");
+    if (!obj) return fallback;
+    return std::wstring{ obj.GetNamedString(type, fallback) };
 }
 
 void Setting::setAutoStart(bool autoStart)

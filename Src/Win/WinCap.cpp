@@ -7,6 +7,8 @@
 #include "../Util.h"
 #include "../Lang.h"
 #include "../Update.h"
+#include "../Setting.h"
+#include "Shortcut.h"
 #include "CapLong.h"
 #include "CapVideo.h"
 #include "../Tool/ToolCap.h"
@@ -252,6 +254,12 @@ void WinCap::paintPix(ID2D1DeviceContext* ctx)
 
 void WinCap::onKey(UINT key)
 {
+    if (isClosed) return;
+    if (stage == CapStage::Adjust && !isPress && cutMask->hasRect() &&
+        Shortcut::parse(Setting::get()->getShortcutKey(L"pin")).matches(key, Shortcut::currentModifiers())) {
+        startPin();
+        return;
+    }
     auto func = []() {
         POINT pos;
         GetCursorPos(&pos);
