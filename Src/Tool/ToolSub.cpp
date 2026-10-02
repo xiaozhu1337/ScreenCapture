@@ -4,6 +4,7 @@
 #include "../Setting.h"
 #include "../Tip.h"
 #include "ToolSub.h"
+#include "ToolSlider.h"
 #include "ToolMain.h"
 
 using namespace Microsoft::WRL;
@@ -360,7 +361,8 @@ Ling::Button* ToolSub::makeToggleBtn(const std::wstring& text, bool* flag, const
 
 void ToolSub::initSlider()
 {
-	slider = contentNode->makeChild<Ling::Slider>();
+	slider = contentNode->makeChild<ToolSlider>();
+	slider->setSizePreview(curToolId == L"line");
 	// 尺寸从字段来，别写字面量：initSize 按同样的字段算窗口宽度，
 	// 两边各写一份的话改了一处就会宽度不匹配（flex 会把误差压在按钮和滑块上）。
 	slider->setWidth(sliderSize);
@@ -372,16 +374,12 @@ void ToolSub::initSlider()
 	slider->setRange(sliderMin, sliderMax);
 	slider->setValue(sliderVal);
 	slider->setStep(1.f);
-	slider->onValueChanged.add([this](Ling::Slider*, float val) {
+	slider->onValueChanged.add([this](ToolSlider*, float val) {
 		sliderVal = val;
 		Setting::get()->setToolNum(curToolId, curSliderKey, val);
 		// 正在编辑的文本要立刻跟着变字号，不然得点完再看效果
 		win->onToolStyleChanged();
 	});
-	slider->setThumbColor(0x888888FF);
-	slider->setHoverThumbColor(0x888888FF);
-	slider->setTrackColor(0x888888FF);
-	slider->setFillColor(0x888888FF);
 }
 
 float ToolSub::toPx(float logical) const

@@ -3,6 +3,7 @@
 
 class WinPin;
 class Tip;
+class ToolSlider;
 class ToolSub:public Ling::WinBase
 {
 public:
@@ -69,7 +70,7 @@ private:
 	std::vector<Ling::Button*> colorBtns;
 	// 当前的滑块。切换工具时会被销毁重建，重建后由 initSlider 重新赋值。
 	// 存下来是为了在窗口的 onMouseMove 里判断鼠标是否在它上面，好显示数值提示。
-	Ling::Slider* slider{ nullptr };
+	ToolSlider* slider{ nullptr };
 	// 悬停提示。要 hwnd，所以在 onCreated 里才建得起来
 	std::unique_ptr<Tip> tip;
 	static constexpr float btnSize{ 32.f };

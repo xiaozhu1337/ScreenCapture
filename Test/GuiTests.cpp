@@ -10,6 +10,7 @@
 #include "Tool/ToolCap.h"
 #include "Tool/ToolMain.h"
 #include "Tool/ToolSub.h"
+#include "Tool/ToolSlider.h"
 #include "Tool/ToolRegistry.h"
 #include "Shape/ShapeLine.h"
 #include <array>
@@ -122,6 +123,21 @@ namespace {
             if (auto found = findButton(child.get(), id)) return found;
         }
         return nullptr;
+    }
+
+    ToolSlider* findSlider(Ling::Node* node)
+    {
+        if (auto slider = dynamic_cast<ToolSlider*>(node)) return slider;
+        for (auto& child : node->children) {
+            if (auto slider = findSlider(child.get())) return slider;
+        }
+        return nullptr;
+    }
+
+    auto sliderThumb(ToolSlider* slider)
+    {
+        using namespace winrt::Windows::UI::Composition;
+        return slider->visual.Children().First().Current().as<ShapeVisual>().Shapes().GetAt(1).as<CompositionSpriteShape>();
     }
 
     void click(Ling::Node* node, const std::wstring& id)
@@ -320,6 +336,43 @@ void testGuiFeatures()
     }
     click(pin->toolSub->body.get(), L"color-red");
     require(pin->toolSub->getSelectedColorValue() == originalColor, "Restoring the palette selection must restore the pen color");
+    auto widthSlider = findSlider(pin->toolSub->body.get());
+    require(widthSlider != nullptr, "Line controls must contain a width slider");
+    float previousRadius = 0.f;
+    for (const float width : { 1.f, 30.f, 60.f }) {
+        pin->toolSub->setShapeSliderVal(L"line", width * pin->toolSub->dpi);
+        const auto thumb = sliderThumb(widthSlider);
+        const auto radius = thumb.Geometry().as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius();
+        const auto center = thumb.Offset();
+        require(radius.x > previousRadius && radius.x == radius.y,
+            "The slider dot must grow throughout the full line-width range");
+        require(center.x - radius.x >= 0.f && center.x + radius.x <= widthSlider->w
+            && center.y - radius.y >= 0.f && center.y + radius.y <= widthSlider->h,
+            "The slider dot must remain fully visible at both ends of the track");
+        previousRadius = radius.x;
+    }
+    snapshot(pin->toolSub.get(), L"gui-line-controls-wide.bmp");
+    const auto sliderY = static_cast<int>(widthSlider->y + widthSlider->h / 2.f);
+    const auto sliderLeft = static_cast<int>(widthSlider->x + 1.f);
+    const auto sliderMiddle = static_cast<int>(widthSlider->x + widthSlider->w / 2.f);
+    const auto sliderRight = static_cast<int>(widthSlider->x + widthSlider->w + 20.f);
+    const auto sliderWindow = pin->toolSub->hwnd;
+    SendMessage(sliderWindow, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(sliderLeft, sliderY));
+    require(widthSlider->getValue() == 1.f && GetCapture() == sliderWindow,
+        "Pressing the slider's left end must select minimum width and capture the mouse");
+    SendMessage(sliderWindow, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(sliderMiddle, sliderY));
+    require(std::abs(widthSlider->getValue() - 30.f) <= 1.f,
+        "Dragging through the center must use a stable value mapping as the dot grows");
+    SendMessage(sliderWindow, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(sliderRight, sliderY));
+    require(widthSlider->getValue() == 60.f, "Dragging beyond the track must clamp to maximum line width");
+    SendMessage(sliderWindow, WM_LBUTTONUP, 0, MAKELPARAM(sliderRight, sliderY));
+    require(GetCapture() != sliderWindow, "Releasing the slider must release mouse capture");
+    POINT sliderPoint{ sliderMiddle, sliderY };
+    ClientToScreen(sliderWindow, &sliderPoint);
+    SendMessage(sliderWindow, WM_MOUSEWHEEL, MAKEWPARAM(0, static_cast<WORD>(-WHEEL_DELTA)),
+        MAKELPARAM(sliderPoint.x, sliderPoint.y));
+    require(widthSlider->getValue() == 59.f && std::abs(pin->scale - 1.f) < 0.0001f,
+        "Wheel input over the width slider must adjust pen width without zooming the pin");
     pin->toolSub->setShapeSliderVal(L"line", originalLineWidth);
     auto drawingCursor = requestCursor(pin);
     pin->onMouseDown(POINT{ 40, 40 }, false);
@@ -393,6 +446,15 @@ void testGuiFeatures()
     pin->toolSub->setShapeSliderVal(L"line", originalLineWidth);
     snapshot(pin->toolSub.get(), L"gui-line-controls.bmp");
     snapshot(pin->toolMain.get(), L"gui-main-toolbar.bmp");
+    pin->toolMain->selectTool(L"rect");
+    pump();
+    auto rectSlider = findSlider(pin->toolSub->body.get());
+    require(rectSlider != nullptr, "Rectangle controls must retain a working size slider");
+    const auto rectRadius = sliderThumb(rectSlider).Geometry()
+        .as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius().x;
+    rectSlider->setValue(rectSlider->getValue() + 2.f);
+    require(sliderThumb(rectSlider).Geometry().as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius().x == rectRadius,
+        "Other tools must keep their original fixed slider dot size");
     pin->close();
     pump();
 
