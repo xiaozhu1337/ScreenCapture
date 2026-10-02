@@ -93,8 +93,10 @@ void App::excludeFromCapture(HWND hwnd)
 
 App::App()
 {
-    Ling::init(L"ScreenCapture");
+    Ling::init();
     auto app = Ling::App::get();
+    app->appID = L"ScreenCapture";
+    SetCurrentProcessExplicitAppUserModelID(app->appID.c_str());
     app->initArgs();
     Ling::D2D::addFonts({ L"icon.ttf" });
     // 录制中直接退出会让编码线程和 D3D 设备一起卡住，退出前先把录制停掉

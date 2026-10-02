@@ -39,6 +39,30 @@
 - 使用 Visual Studio 2026（With C++ Desktop Dev Kit）即可编译项目。
 - [2.4.25（基于D2D）](https://github.com/xland/ScreenCapture/tree/2.4.25)或 [2.3.3（基于Qt）](https://github.com/xland/ScreenCapture/tree/2.3.3_qt)是以前的稳定分支。
 
+### 使用 xmake 构建
+
+需要 Windows x64、Git 和 Visual Studio 2026 的 C++ 桌面开发工具（包含 Windows SDK 和 ATL）。项目通过 `mise.toml` 固定 xmake、Python 和 Rust 工具版本，由 [mise](https://mise.jdx.dev/) 管理：
+
+```powershell
+mise trust
+mise install
+mise exec -- xmake f -p windows -a x64 -m release --vs=2026
+mise exec -- xmake
+```
+
+Release 可执行文件输出到 `build/windows/x64/release/ScreenCapture.exe`。首次构建自动下载固定版本的 Ling（含 Yoga）和 gifski 1.34.0 到 `build/deps`，通过 Cargo 构建 gifski 静态库，再由 xmake 编译 Ling、Yoga 和应用；无需设置原 Visual Studio 项目中的绝对依赖路径。依赖缓存与构建产物不提交到 Git。
+
+需要代理时，在运行以上命令的环境中配置 `HTTP_PROXY`、`HTTPS_PROXY` 和 `CARGO_HTTP_PROXY`。首次构建需要联网，依赖准备完成后可重复进行本地构建。
+
+Debug 构建使用相同依赖，将配置切换为 `-m debug`：
+
+```powershell
+mise exec -- xmake f -p windows -a x64 -m debug --vs=2026
+mise exec -- xmake
+```
+
+Debug 可执行文件输出到 `build/windows/x64/debug/ScreenCapture.exe`。两种构建均沿用原项目的 C++20、静态运行库、语言与字体资源、每显示器 DPI 感知和 Segment Heap 设置。应用配置仍使用原来的 `config.json`。
+
 ## 命令行
 
 ```
