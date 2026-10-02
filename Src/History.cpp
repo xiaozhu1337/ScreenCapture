@@ -121,9 +121,8 @@ void History::removeHoverShape()
 void History::removeShape(ShapeBase* target)
 {
     for (auto it = shapes.begin(); it != shapes.end(); ++it) {
-        if (it->get() == target) {
-			win->shapeHover = nullptr; 
-        }
+        if (it->get() != target) continue;
+        if (win->shapeHover == target) win->shapeHover = nullptr;
         shapes.erase(it);
         win->refresh();
         return;

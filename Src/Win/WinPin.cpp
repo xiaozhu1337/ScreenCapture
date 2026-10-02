@@ -366,6 +366,8 @@ void WinPin::onDown(POINT pos, BOOL isRight)
 	}
 	// 以下都是交给 shape 的坐标，一律换算成底图像素（拖窗口那条路仍用窗口坐标）
 	auto imgPos = toImgPos(pos);
+	// The line tool starts a new stroke on every press, including over an existing shape.
+	if (toolMain->curId == L"line") shapeHover = nullptr;
 	if (shapeHover) {
 		newShape = nullptr; //改的是已有元素，不参与空元素判定
 		shapeHover->mouseDown((float)imgPos.x, (float)imgPos.y);
@@ -396,6 +398,14 @@ void WinPin::onMove(POINT pos)
 	else
 	{
 		if (toolMain->curId == L"") return;
+		if (toolMain->curId == L"line") {
+			if (shapeHover) {
+				shapeHover = nullptr;
+				killTimer(100);
+				refresh();
+			}
+			return;
+		}
 		int i{ (int)(history->shapes.size() - 1) };
 		for (; i >= 0; i--)
 		{
@@ -447,8 +457,14 @@ void WinPin::onUp(POINT pos, BOOL isRight)
 		prevPressCreatedShape = (shapeHover == justCreated);
 		auto imgPos = toImgPos(pos);
 		shapeHover->mouseUp((float)imgPos.x, (float)imgPos.y);
+		if (toolMain->curId == L"line") {
+			shapeHover = nullptr;
+			killTimer(100);
+		}
+		else {
+			setTimer(800, 100);
+		}
 		refresh();
-		setTimer(800, 100);
 	}
 
 }

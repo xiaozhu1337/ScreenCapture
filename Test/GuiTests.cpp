@@ -11,6 +11,7 @@
 #include "Tool/ToolSub.h"
 #include "Tool/ToolRegistry.h"
 #include "Shape/ShapeLine.h"
+#include <array>
 #include <fstream>
 #include <stdexcept>
 
@@ -19,6 +20,21 @@ namespace {
     {
         if (!value) throw std::runtime_error(message);
     }
+
+    class ScopedShift
+    {
+    public:
+        ScopedShift()
+        {
+            require(GetKeyboardState(previous.data()), "Keyboard state must be available");
+            auto pressed = previous;
+            pressed[VK_SHIFT] |= 0x80;
+            require(SetKeyboardState(pressed.data()), "Shift state must be available");
+        }
+        ~ScopedShift() { SetKeyboardState(previous.data()); }
+    private:
+        std::array<BYTE, 256> previous{};
+    };
 
     void pump()
     {
@@ -107,6 +123,39 @@ namespace {
         button->onClick(button);
         pump();
     }
+
+    std::vector<BYTE> renderShape(ShapeBase* shape, D2D1_SIZE_U size)
+    {
+        auto ctx = Ling::D2D::get()->deviceContext;
+        Microsoft::WRL::ComPtr<ID2D1Image> previous;
+        ctx->GetTarget(previous.GetAddressOf());
+        D2D1_MATRIX_3X2_F transform;
+        ctx->GetTransform(&transform);
+        Microsoft::WRL::ComPtr<ID2D1Bitmap1> target, readable;
+        auto properties = D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET,
+            D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+        winrt::check_hresult(ctx->CreateBitmap(size, nullptr, 0, properties, target.GetAddressOf()));
+        properties.bitmapOptions = D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+        winrt::check_hresult(ctx->CreateBitmap(size, nullptr, 0, properties, readable.GetAddressOf()));
+        ctx->SetTarget(target.Get());
+        ctx->SetTransform(D2D1::Matrix3x2F::Identity());
+        ctx->BeginDraw();
+        ctx->Clear(D2D1::ColorF(0.f, 0.f, 0.f, 0.f));
+        shape->paint(ctx.Get());
+        auto result = ctx->EndDraw();
+        ctx->SetTarget(previous.Get());
+        ctx->SetTransform(transform);
+        winrt::check_hresult(result);
+        winrt::check_hresult(readable->CopyFromBitmap(nullptr, target.Get(), nullptr));
+        D2D1_MAPPED_RECT mapped{};
+        winrt::check_hresult(readable->Map(D2D1_MAP_OPTIONS_READ, &mapped));
+        std::vector<BYTE> pixels(size.width * size.height * 4);
+        for (UINT y = 0; y < size.height; ++y) {
+            std::copy_n(mapped.bits + y * mapped.pitch, size.width * 4, pixels.data() + y * size.width * 4);
+        }
+        winrt::check_hresult(readable->Unmap());
+        return pixels;
+    }
 }
 
 void testGuiFeatures()
@@ -160,10 +209,43 @@ void testGuiFeatures()
     pin->onMouseUp(POINT{ 150, 100 }, false);
     require(pin->history->shapes.size() == 1 && dynamic_cast<ShapeLine*>(pin->history->shapes[0].get()),
         "Promoted line must support actual drawing");
+    require(pin->shapeHover == nullptr, "Releasing the mouse must finish the active line stroke");
+    auto firstLine = pin->history->shapes.front().get();
+    const auto imageSize = pin->screenImg->GetPixelSize();
+    const auto firstPixels = renderShape(firstLine, imageSize);
+    require(std::any_of(firstPixels.begin(), firstPixels.end(), [](BYTE value) { return value != 0; }),
+        "The completed line must render visible pixels");
+    // No mouse move between release and the next press: a completed stroke must not remain active.
+    Sleep(GetDoubleClickTime() + 1);
+    {
+        ScopedShift shift;
+        pin->onMouseDown(POINT{ 250, 40 }, false);
+        pin->onMouseMove(POINT{ 320, 100 });
+        pin->onMouseUp(POINT{ 320, 100 }, false);
+    }
+    require(pin->history->shapes.size() == 2, "Each mouse press must create a separate line stroke");
+    require(renderShape(firstLine, imageSize) == firstPixels, "Drawing another stroke must not change the completed line");
+    // A new stroke may start at an old endpoint and cross an old line.
+    Sleep(GetDoubleClickTime() + 1);
+    pin->onMouseMove(POINT{ 150, 100 });
+    pin->onMouseDown(POINT{ 150, 100 }, false);
+    pin->onMouseMove(POINT{ 40, 40 });
+    pin->onMouseUp(POINT{ 40, 40 }, false);
+    require(pin->history->shapes.size() == 3, "Starting on an old line must draw a new independent stroke");
+    require(renderShape(firstLine, imageSize) == firstPixels, "Overlapping strokes must leave the old line unchanged");
+    Sleep(GetDoubleClickTime() + 1);
+    pin->onMouseDown(POINT{ 400, 140 }, false);
+    pin->onMouseUp(POINT{ 400, 140 }, false);
+    require(pin->history->shapes.size() == 3 && pin->history->shapes.front().get() == firstLine,
+        "An empty stroke must be discarded without deleting a completed line");
+    for (const auto& shape : pin->history->shapes) {
+        require(!shape->isUndo, "A completed new stroke must be active in history");
+    }
     pin->history->undo();
-    require(pin->history->shapes[0]->isUndo, "Undo must work after entering through a promoted tool");
+    require(pin->history->shapes.back()->isUndo && !firstLine->isUndo,
+        "Undo must remove only the latest completed stroke");
     pin->history->redo();
-    require(!pin->history->shapes[0]->isUndo, "Redo must work after entering through a promoted tool");
+    require(!pin->history->shapes.back()->isUndo, "Redo must restore the latest independent stroke");
     snapshot(pin->toolSub.get(), L"gui-line-controls.bmp");
     snapshot(pin->toolMain.get(), L"gui-main-toolbar.bmp");
     pin->close();

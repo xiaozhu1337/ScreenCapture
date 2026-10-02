@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "App.h"
 #include "Win/WinPin.h"
 #include "Tool/ToolMain.h"
@@ -125,6 +125,7 @@ void ShapeLine::mouseUp(const float x, const float y)
 	draggers[1].top = end.y - half;
 	draggers[1].right = end.x + half;
 	draggers[1].bottom = end.y + half;
+	hoverDraggerIndex = -1;
 }
 
 void ShapeLine::mouseMove(const float x, const float y)
