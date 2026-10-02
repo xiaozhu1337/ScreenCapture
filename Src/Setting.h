@@ -18,6 +18,8 @@ public:
 	std::wstring getShortcutKey(const std::wstring& type);
 	void setAutoStart(bool autoStart);
 	bool getAutoStart();
+	bool getToolbarBottom();
+	void setToolbarBottom(bool value);
 	std::wstring getLang();
 	void setLang(const std::wstring& lang);
 	void initShortcutKeys();
@@ -51,4 +53,3 @@ private:
 	const std::filesystem::path configPath;
 	JsonObject configObj;
 };
-

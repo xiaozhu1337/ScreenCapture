@@ -65,7 +65,9 @@
     "about": "About",
     "autoStart": "Launch at startup:",
     "language": "Language:",
-    "getMoreLang": "get more language"
+    "getMoreLang": "get more language",
+    "toolbarBottom": "Keep editing toolbar at bottom:",
+    "toolbarBottomHint": "When space below is limited, place the toolbar inside the bottom of the selection."
   },
   "about": {
     "version": "Version:",

@@ -3,10 +3,14 @@
 #include "../Setting.h"
 #include "WinSetting.h"
 #include "WinSettingCommon.h"
+#include "WinCap.h"
+#include "WinPin.h"
+#include "../Tool/ToolCap.h"
 
 WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
 {    
     initAutoStartCtrls();
+    initToolbarCtrls();
     initLangCtrls();
     auto weakThis = getWeakThis();
     // 这个回调一直挂在窗口上，而本节点可能在窗口关闭之前就被菜单切换换掉了，
@@ -91,6 +95,49 @@ void WinSettingCommon::initLangCtrls()
     auto border = makeChild<Ling::Node>();
     border->setHeight(1.f);
     border->setBg(0xE0E0E0FF);
+}
+
+void WinSettingCommon::initToolbarCtrls()
+{
+    auto box = makeChild<Ling::Node>();
+    box->setHeight(39.f);
+    box->setFlexDirection(Ling::FlexDirection::Row);
+    box->setAlignItems(Ling::Align::Center);
+    auto label = box->makeChild<Ling::Label>();
+    label->setText(Lang::get(L"setting.toolbarBottom"));
+    label->setHeightPercent(100.f);
+    label->setJustifyContent(Ling::Justify::Center);
+    label->setFlexGrow(1.f);
+    auto btn = box->makeChild<Ling::Button>();
+    btn->id = L"toolbarBottom";
+    btn->setFontFamily(L"icon");
+    btn->setFontSize(18.f);
+    btn->setSize(60.f, 39.f);
+    auto refresh = [](Ling::Button* btn) {
+        const bool enabled = Setting::get()->getToolbarBottom();
+        btn->setText(enabled ? L"\ue688" : L"\ue687");
+        btn->setColor(enabled ? 0x597ef7ff : 0x666666FF);
+        btn->setHoverColor(enabled ? 0x597ef7ff : 0x666666FF);
+    };
+    refresh(btn);
+    btn->onClick.add([refresh](Ling::Button* btn) {
+        Setting::get()->setToolbarBottom(!Setting::get()->getToolbarBottom());
+        refresh(btn);
+        for (auto window : Ling::App::get()->windows) {
+            if (auto pin = dynamic_cast<WinPin*>(window)) pin->layoutTools();
+            else if (auto tool = dynamic_cast<ToolCap*>(window)) {
+                if (auto cap = WinCap::get()) cap->layoutTool(tool);
+            }
+        }
+    });
+    auto border = makeChild<Ling::Node>();
+    border->setHeight(1.f);
+    border->setBg(0xE0E0E0FF);
+    auto hint = makeChild<Ling::Label>();
+    hint->setText(Lang::get(L"setting.toolbarBottomHint"));
+    hint->setHeight(44.f);
+    hint->setFontSize(12.f);
+    hint->setColor(0x666666FF);
 }
 
 void WinSettingCommon::setAutoStartBtn(Ling::Button* btn)

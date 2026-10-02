@@ -65,7 +65,9 @@
     "about": "关于",
     "autoStart": "开机自启动：",
     "language": "语言：",
-    "getMoreLang": "获取更多语言"
+    "getMoreLang": "获取更多语言",
+    "toolbarBottom": "编辑菜单始终显示在底部：",
+    "toolbarBottomHint": "下方空间不足时显示在选区内部底部，不再移到上方。"
   },
   "about": {
     "version": "版本：",

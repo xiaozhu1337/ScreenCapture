@@ -9,6 +9,7 @@
 #include "../Update.h"
 #include "../Setting.h"
 #include "Shortcut.h"
+#include "../Tool/ToolPlacement.h"
 #include "CapLong.h"
 #include "CapVideo.h"
 #include "../Tool/ToolCap.h"
@@ -553,36 +554,18 @@ void WinCap::layoutTool(Ling::WinBase* tool)
     RECT maskScrRect{ maskLeftScr, maskTopScr, maskRightScr, maskBottomScr };
     HMONITOR hMon = MonitorFromRect(&maskScrRect, MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{ sizeof(MONITORINFO) };
-    GetMonitorInfo(hMon, &mi);
+    if (!GetMonitorInfo(hMon, &mi)) {
+        auto [sx, sy, sw, sh] = App::get()->getScreenArea();
+        mi.rcWork = { sx, sy, sx + sw, sy + sh };
+    }
 
     // 间距按工具条自己所在显示器的缩放算：本窗口铺满整个虚拟桌面，dpi 是系统缩放，
     // 混合缩放的多屏下和选区所在的那块屏不一定是一回事
     const int gap = (int)(cutMask->strokeWidth + 2.f * tool->dpi + 0.5f); // 与框选边框的间距
-    const bool fitBelow = (maskBottomScr + gap + toolH) <= mi.rcWork.bottom;
-    const bool fitAbove = (maskTopScr - gap - toolH) >= mi.rcWork.top;
-
-    // 工具条右侧与框选区域右侧对齐
-    int toolX = maskRightScr - toolW;
-    int toolY = 0;
-    if (fitBelow) {
-        // 右下方
-        toolY = maskBottomScr + gap;
-    }
-    else if (fitAbove) {
-        // 右上方
-        toolY = maskTopScr - gap - toolH;
-    }
-    else {
-        // 叠加在框选区域右下方内部，与右/底各留 3*dpi
-        const int overlapPad = (int)(3.f * tool->dpi + 0.5f);
-        toolX = maskRightScr - toolW - overlapPad;
-        toolY = maskBottomScr - toolH - overlapPad;
-    }
-
-    // 兜底：不越出所在显示器工作区
-    if (toolX < mi.rcWork.left) toolX = mi.rcWork.left;
-    if (toolX + toolW > mi.rcWork.right) toolX = mi.rcWork.right - toolW;
-    tool->setPosition(toolX, toolY);
+    const float inset = std::round(3.f * tool->dpi);
+    auto pos = positionToolBar(maskScrRect, mi.rcWork, { static_cast<float>(toolW), static_cast<float>(toolH) },
+        static_cast<float>(toolH), static_cast<float>(gap), { inset, inset }, Setting::get()->getToolbarBottom());
+    tool->setPosition(pos.x, pos.y);
 }
 
 void WinCap::enterLiveStage()

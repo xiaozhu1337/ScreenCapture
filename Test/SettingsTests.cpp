@@ -2,6 +2,7 @@
 #include "Setting.h"
 #include "Lang.h"
 #include "Win/Shortcut.h"
+#include "Tool/ToolPlacement.h"
 #include <iostream>
 #include <stdexcept>
 
@@ -35,6 +36,30 @@ namespace {
         Setting::get()->setLang(L"en-US");
         require(Lang::get(L"shortcut.pin") == L"Pin selection:", "Embedded English shortcut translation");
     }
+
+    void testPlacement()
+    {
+        auto setting = Setting::get();
+        require(!setting->getToolbarBottom(), "Old configurations should keep automatic placement");
+        setting->setToolbarBottom(true);
+        Setting::dispose();
+        Setting::init();
+        require(Setting::get()->getToolbarBottom(), "Bottom placement setting must persist");
+        const RECT work{ 0, 0, 1920, 1000 };
+        auto below = positionToolBar({ 200, 100, 900, 900 }, work, { 300, 40 }, 40, 5, { 3, 3 }, true);
+        require(below.x == 600 && below.y == 905, "Toolbar should use available space below selection");
+        auto automatic = positionToolBar({ 200, 400, 900, 995 }, work, { 300, 40 }, 40, 5, { 3, 3 }, false);
+        require(automatic.y == 355, "Automatic mode should use available space above selection");
+        auto bottom = positionToolBar({ 200, 400, 900, 995 }, work, { 300, 40 }, 40, 5, { 3, 3 }, true);
+        require(bottom.x == 597 && bottom.y == 952, "Bottom mode must overlay bottom instead of jumping above");
+        auto sub = positionToolBar({ 200, 400, 900, 995 }, work, { 300, 100 }, 100, 5, { 0, 5 }, true);
+        require(sub.y == 890 && sub.y + 100 <= work.bottom, "Expanded toolbar group must remain visible at bottom");
+        auto negative = positionToolBar({ -1900, 1050, -1880, 1070 }, { -1920, 0, 0, 1080 },
+            { 400, 60 }, 60, 5, { 3, 3 }, true);
+        require(negative.x == -1920 && negative.y == 1007, "Toolbar must handle negative monitor origins");
+        auto outside = positionToolBar({ -900, 4000, -800, 5000 }, work, { 300, 60 }, 60, 5, { 3, 3 }, true);
+        require(outside.x == 0 && outside.y == 940, "Offscreen selection must clamp toolbar to work area");
+    }
 }
 
 int main()
@@ -50,7 +75,8 @@ int main()
         Setting::init();
         Lang::init();
         testShortcuts();
-        std::cout << "Shortcut configuration and matching tests passed\n";
+        testPlacement();
+        std::cout << "Shortcut and toolbar placement tests passed\n";
     }
     catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

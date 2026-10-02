@@ -4,6 +4,8 @@
 #include "../Shape/ShapeBase.h"
 #include "../Shape/ShapeText.h"
 #include "WinPin.h"
+#include "../Setting.h"
+#include "../Tool/ToolPlacement.h"
 #include "WinCap.h"
 #include "History.h"
 #include "../App.h"
@@ -14,15 +16,6 @@ using namespace Microsoft::WRL;
 namespace {
 	std::vector<std::unique_ptr<WinPin>> winPins;
 
-	int clampPos(float val, float size, int min, int max)
-	{
-		auto upper = max - static_cast<int>(size);
-		if (upper < min) upper = min;
-		auto result = static_cast<int>(val);
-		if (result < min) result = min;
-		if (result > upper) result = upper;
-		return result;
-	}
 }
 
 WinPin::WinPin(int x, int y, int w, int h, const std::vector<BYTE>* data) : Ling::WinBase(), history{ std::make_unique<History>(this) }
@@ -222,19 +215,9 @@ void WinPin::layoutTools()
 	// ToolSub 实际显示时 ToolMain 才上移让出它的位置（有些绘图按钮暂时还没有子工具栏）
 	const auto usedH = showSub ? groupH : mainH;
 
-	float mainY;
-	if (winRect.bottom + gap + groupH <= wa.bottom) {         // bottom
-		mainY = winRect.bottom + gap;
-	}
-	else if (winRect.top - gap - groupH >= wa.top) {          // top
-		mainY = winRect.top - gap - usedH;
-	}
-	else {                                                    // overlay
-		mainY = winRect.bottom - gap - usedH;
-	}
-	auto mainX = static_cast<float>(winRect.right) - toolMain->w;
-	// 垂直方向按整组当前高度裁剪，避免 WinPin 超出工作区时把 ToolSub 挤到屏幕外
-	toolMain->setPosition(clampPos(mainX, toolMain->w, wa.left, wa.right), clampPos(mainY, usedH, wa.top, wa.bottom));
+	auto pos = positionToolBar(winRect, wa, { toolMain->w, usedH }, groupH, gap, { 0.f, gap },
+		Setting::get()->getToolbarBottom());
+	toolMain->setPosition(pos.x, pos.y);
 	if (showSub) {
 		toolSub->updatePosition(wa);
 	}

@@ -99,6 +99,23 @@ std::wstring Setting::getShortcutKey(const std::wstring& type)
     return std::wstring{ obj.GetNamedString(type, fallback) };
 }
 
+bool Setting::getToolbarBottom()
+{
+    auto common = configObj.GetNamedObject(L"common", nullptr);
+    return common && common.GetNamedBoolean(L"toolbarBottom", false);
+}
+
+void Setting::setToolbarBottom(bool value)
+{
+    auto common = configObj.GetNamedObject(L"common", nullptr);
+    if (!common) {
+        common = JsonObject();
+        configObj.SetNamedValue(L"common", common);
+    }
+    common.SetNamedValue(L"toolbarBottom", JsonValue::CreateBooleanValue(value));
+    save();
+}
+
 void Setting::setAutoStart(bool autoStart)
 {
     std::wstring runKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
