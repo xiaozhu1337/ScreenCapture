@@ -9,10 +9,10 @@ LineCursor::~LineCursor()
     }
 }
 
-HCURSOR LineCursor::get(float width)
+HCURSOR LineCursor::get(float width, DWORD rgba)
 {
     const int nextDiameter = std::max(3, static_cast<int>(std::ceil(width)));
-    if (cursor && diameter == nextDiameter) return cursor;
+    if (cursor && diameter == nextDiameter && color == rgba) return cursor;
 
     // An odd bitmap places the hotspot exactly at the center of the dot.
     const int size = (nextDiameter + 4) | 1;
@@ -33,16 +33,23 @@ HCURSOR LineCursor::get(float width)
     if (!bitmap) return LoadCursor(nullptr, IDC_ARROW);
     auto pixels = static_cast<DWORD*>(bits);
     const float radius = nextDiameter / 2.f;
+    const DWORD red = (rgba >> 24) & 255, green = (rgba >> 16) & 255, blue = (rgba >> 8) & 255;
+    const float opacity = (rgba & 255) / 255.f;
+    const float edgeColor = (299 * red + 587 * green + 114 * blue >= 128000) ? 0.f : 255.f;
     for (int y = 0; y < size; ++y) {
         for (int x = 0; x < size; ++x) {
             const float dx = static_cast<float>(x - center), dy = static_cast<float>(y - center);
             const float distance = std::sqrt(dx * dx + dy * dy);
             const float outer = std::clamp(radius + 0.5f - distance, 0.f, 1.f);
             const float inner = std::clamp(radius - 0.5f - distance, 0.f, 1.f);
-            const DWORD alpha = static_cast<DWORD>(std::lround(outer * 255.f));
-            // Premultiplied alpha: a black dot with a one-pixel white edge.
-            const DWORD color = static_cast<DWORD>(std::lround((outer - inner) * 255.f));
-            pixels[y * size + x] = (alpha << 24) | (color << 16) | (color << 8) | color;
+            const float fill = inner * opacity;
+            const float edge = outer - inner;
+            const DWORD alpha = static_cast<DWORD>(std::lround((fill + edge) * 255.f));
+            // Premultiplied selected color with a contrasting one-pixel edge.
+            const DWORD r = static_cast<DWORD>(std::lround(fill * red + edge * edgeColor));
+            const DWORD g = static_cast<DWORD>(std::lround(fill * green + edge * edgeColor));
+            const DWORD b = static_cast<DWORD>(std::lround(fill * blue + edge * edgeColor));
+            pixels[y * size + x] = (alpha << 24) | (r << 16) | (g << 8) | b;
         }
     }
     const int maskStride = ((size + 15) / 16) * 2;
@@ -62,5 +69,6 @@ HCURSOR LineCursor::get(float width)
     }
     cursor = next;
     diameter = nextDiameter;
+    color = rgba;
     return cursor;
 }

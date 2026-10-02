@@ -672,7 +672,7 @@ BOOL WinPin::setCursor()
 		return TRUE;
 	}
 	if (toolMain->curId == L"line") {
-		SetCursor(lineCursor.get(toolSub->getSliderVal() * scale));
+		SetCursor(lineCursor.get(toolSub->getSliderVal() * scale, toolSub->getSelectedColorValue()));
 		return TRUE;
 	}
 	if (shapeHover) {

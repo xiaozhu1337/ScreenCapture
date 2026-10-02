@@ -84,6 +84,29 @@ namespace {
         return bitmap.bmWidth;
     }
 
+    DWORD cursorCenterColor(HCURSOR cursor)
+    {
+        ICONINFO info{};
+        require(GetIconInfo(cursor, &info), "Cursor pixels must be available");
+        BITMAP bitmap{};
+        GetObject(info.hbmColor, sizeof(bitmap), &bitmap);
+        BITMAPINFO header{};
+        header.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        header.bmiHeader.biWidth = bitmap.bmWidth;
+        header.bmiHeader.biHeight = -bitmap.bmHeight;
+        header.bmiHeader.biPlanes = 1;
+        header.bmiHeader.biBitCount = 32;
+        header.bmiHeader.biCompression = BI_RGB;
+        std::vector<DWORD> pixels(bitmap.bmWidth * bitmap.bmHeight);
+        auto dc = GetDC(nullptr);
+        const auto result = GetDIBits(dc, info.hbmColor, 0, bitmap.bmHeight, pixels.data(), &header, DIB_RGB_COLORS);
+        ReleaseDC(nullptr, dc);
+        DeleteObject(info.hbmColor);
+        DeleteObject(info.hbmMask);
+        require(result == bitmap.bmHeight, "Cursor color bitmap must be readable");
+        return pixels[(bitmap.bmHeight / 2) * bitmap.bmWidth + bitmap.bmWidth / 2] & 0xFFFFFF;
+    }
+
     template<typename T> T* findWindow()
     {
         for (auto window : Ling::App::get()->windows) {
@@ -286,6 +309,17 @@ void testGuiFeatures()
     require(requestCursor(pin) == thinCursor, "An unchanged line width must reuse its cursor");
     pin->toolSub->setShapeSliderVal(L"line", 16.f * pin->toolSub->dpi);
     require(cursorSize(requestCursor(pin)) > thinCursorSize, "Increasing line width must enlarge the dot cursor");
+    const auto originalColor = pin->toolSub->getSelectedColorValue();
+    const std::array<std::wstring, 5> penColors{ L"red", L"green", L"blue", L"black", L"white" };
+    for (const auto& colorName : penColors) {
+        click(pin->toolSub->body.get(), L"color-" + colorName);
+        const auto color = pin->toolSub->getSelectedColorValue();
+        const auto cursor = requestCursor(pin);
+        require(cursorCenterColor(cursor) == (color >> 8), "The line cursor must match the selected pen color");
+        require(requestCursor(pin) == cursor, "An unchanged width and color must reuse the native cursor");
+    }
+    click(pin->toolSub->body.get(), L"color-red");
+    require(pin->toolSub->getSelectedColorValue() == originalColor, "Restoring the palette selection must restore the pen color");
     pin->toolSub->setShapeSliderVal(L"line", originalLineWidth);
     auto drawingCursor = requestCursor(pin);
     pin->onMouseDown(POINT{ 40, 40 }, false);
@@ -339,6 +373,7 @@ void testGuiFeatures()
     wheel(pin, POINT{ 200, 100 }, WHEEL_DELTA * 2);
     require(std::abs(pin->scale - 1.21f) < 0.0001f, "Wheel zoom must work with line selected and multiple notches");
     require(cursorSize(requestCursor(pin)) > normalCursorSize, "The dot cursor must follow the displayed stroke scale");
+    require(cursorCenterColor(requestCursor(pin)) == (originalColor >> 8), "Zoom must preserve the selected cursor color");
     require(pin->toolSub->getSliderVal() == configuredWidth && pin->history->shapes.size() == 3,
         "Wheel zoom must not change the pen width or annotation history");
     require(renderShape(firstLine, imageSize) == firstPixels, "Zoom must keep completed annotation pixels unchanged");

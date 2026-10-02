@@ -290,6 +290,7 @@ void ToolSub::initColorBtns()
 	for (size_t i = 0; i < colors.size(); i++)
 	{
 		auto btn = contentNode->makeChild<Ling::Button>();
+		btn->id = L"color-" + colorNames[i];
 		btn->setHeight(btnSize-2.5);
 		btn->setFlexGrow(1.f);
 		btn->setAlignItems(Ling::Align::Center);
@@ -475,4 +476,3 @@ void ToolSub::updatePosition(const RECT& workArea)
 		isVisible = true;
 	}
 }
-
