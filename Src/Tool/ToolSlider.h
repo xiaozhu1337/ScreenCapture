@@ -12,6 +12,7 @@ public:
     float getValueAt(float px) const;
     void setStep(float step);
     void setSizePreview(bool enabled);
+    void setPreviewScale(float scale);
     winrt::event<winrt::delegate<ToolSlider*, float>> onValueChanged;
 private:
     void layout() override;
@@ -25,5 +26,6 @@ private:
     winrt::Windows::UI::Composition::CompositionSpriteShape trackShape{ nullptr }, thumbShape{ nullptr };
     winrt::event_token downToken{}, moveToken{}, upToken{}, wheelToken{};
     float minValue{ 0.f }, maxValue{ 100.f }, value{ 0.f }, step{ 0.f };
+    float previewScale{ 1.f };
     bool sizePreview{ false }, dragging{ false };
 };

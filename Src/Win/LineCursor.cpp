@@ -9,9 +9,14 @@ LineCursor::~LineCursor()
     }
 }
 
+int LineCursor::dotDiameter(float displayWidth)
+{
+    return std::max(3, static_cast<int>(std::ceil(displayWidth)));
+}
+
 HCURSOR LineCursor::get(float width, DWORD rgba)
 {
-    const int nextDiameter = std::max(3, static_cast<int>(std::ceil(width)));
+    const int nextDiameter = dotDiameter(width);
     if (cursor && diameter == nextDiameter && color == rgba) return cursor;
 
     // An odd bitmap places the hotspot exactly at the center of the dot.

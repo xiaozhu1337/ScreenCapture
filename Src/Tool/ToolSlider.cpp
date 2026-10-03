@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ToolSlider.h"
+#include "../Win/LineCursor.h"
 
 ToolSlider::ToolSlider(Ling::WinBase* win) : Ling::Node(win)
 {
@@ -88,10 +89,18 @@ void ToolSlider::setSizePreview(bool enabled)
     syncVisual();
 }
 
+void ToolSlider::setPreviewScale(float scale)
+{
+    if (previewScale == scale) return;
+    previewScale = scale;
+    syncVisual();
+}
+
 float ToolSlider::maxRadius() const
 {
+    if (sizePreview) return LineCursor::dotDiameter(maxValue * win->dpi * previewScale) * 0.5f;
     const float available = std::max(0.f, std::min(w, h) * 0.5f - win->dpi);
-    return std::min((sizePreview ? 12.f : 3.f) * win->dpi, available);
+    return std::min(3.f * win->dpi, available);
 }
 
 float ToolSlider::inset() const
@@ -119,8 +128,7 @@ void ToolSlider::syncVisual()
     const float padding = inset(), length = w - 2.f * padding;
     if (length <= 0.f) return;
     const float ratio = maxValue > minValue ? (value - minValue) / (maxValue - minValue) : 0.f;
-    const float largest = maxRadius(), smallest = std::min(2.f * win->dpi, largest);
-    const float radius = sizePreview ? smallest + ratio * (largest - smallest) : largest;
+    const float radius = sizePreview ? LineCursor::dotDiameter(value * win->dpi * previewScale) * 0.5f : maxRadius();
     shapes.Size({ w, h });
     track.Size({ length, win->dpi });
     track.CornerRadius({ win->dpi * 0.5f, win->dpi * 0.5f });

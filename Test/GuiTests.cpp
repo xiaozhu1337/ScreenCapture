@@ -346,6 +346,9 @@ void testGuiFeatures()
         const auto center = thumb.Offset();
         require(radius.x > previousRadius && radius.x == radius.y,
             "The slider dot must grow throughout the full line-width range");
+        const auto expectedDiameter = static_cast<int>(std::max(3.f, std::ceil(width * pin->toolSub->dpi * pin->scale)));
+        require(radius.x * 2.f == expectedDiameter && cursorSize(requestCursor(pin)) == ((expectedDiameter + 4) | 1),
+            "The slider dot and native cursor must use the same actual pixel diameter");
         require(center.x - radius.x >= 0.f && center.x + radius.x <= widthSlider->w
             && center.y - radius.y >= 0.f && center.y + radius.y <= widthSlider->h,
             "The slider dot must remain fully visible at both ends of the track");
@@ -426,6 +429,11 @@ void testGuiFeatures()
     wheel(pin, POINT{ 200, 100 }, WHEEL_DELTA * 2);
     require(std::abs(pin->scale - 1.21f) < 0.0001f, "Wheel zoom must work with line selected and multiple notches");
     require(cursorSize(requestCursor(pin)) > normalCursorSize, "The dot cursor must follow the displayed stroke scale");
+    const auto zoomedRadius = sliderThumb(widthSlider).Geometry()
+        .as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius().x;
+    const auto zoomedDiameter = static_cast<int>(std::max(3.f, std::ceil(configuredWidth * pin->scale)));
+    require(zoomedRadius * 2.f == zoomedDiameter && cursorSize(requestCursor(pin)) == ((zoomedDiameter + 4) | 1),
+        "Zoom must keep the slider dot at the exact native cursor diameter");
     require(cursorCenterColor(requestCursor(pin)) == (originalColor >> 8), "Zoom must preserve the selected cursor color");
     require(pin->toolSub->getSliderVal() == configuredWidth && pin->history->shapes.size() == 3,
         "Wheel zoom must not change the pen width or annotation history");
@@ -443,6 +451,8 @@ void testGuiFeatures()
         "Drawing at zoomed coordinates must map back to original image coordinates");
     wheel(pin, POINT{ 242, 121 }, -WHEEL_DELTA * 2);
     require(std::abs(pin->scale - 1.f) < 0.0001f, "Multiple wheel steps must reverse symmetrically");
+    require(sliderThumb(widthSlider).Geometry().as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius().x * 2.f
+        == std::max(3.f, std::ceil(configuredWidth)), "Reversing zoom must restore the exact slider dot diameter");
     pin->toolSub->setShapeSliderVal(L"line", originalLineWidth);
     snapshot(pin->toolSub.get(), L"gui-line-controls.bmp");
     snapshot(pin->toolMain.get(), L"gui-main-toolbar.bmp");

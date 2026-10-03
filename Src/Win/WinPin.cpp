@@ -195,6 +195,7 @@ void WinPin::paintScaleTip(ID2D1DeviceContext* ctx)
 void WinPin::layoutTools()
 {
 	if (!toolMain || !toolSub) return;
+	toolSub->syncLinePreview();
 	// WinPin 的 hwnd 此时可能还没创建（本函数会在构造期调用），所以用矩形而不是窗口句柄找显示器。
 	RECT winRect{ x, y, x + static_cast<int>(w), y + static_cast<int>(h) };
 	MONITORINFO mi{ .cbSize = sizeof(MONITORINFO) };

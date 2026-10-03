@@ -4,6 +4,7 @@
 class WinPin;
 class Tip;
 class ToolSlider;
+class PinCanvas;
 class ToolSub:public Ling::WinBase
 {
 public:
@@ -21,6 +22,7 @@ public:
 	void hideTools();
 	bool hasContent();
 	float getDesiredHeight();
+	void syncLinePreview();
 	void updatePosition(const RECT& workArea);
 	// 当前选中的颜色，直接可喂给 CreateSolidColorBrush。颜色是每工具各存一份的
 	// （见 beginTool），切工具时颜色按钮会重建并按配置文件里那一份重新选中。
@@ -65,6 +67,7 @@ private:
 	void refreshSize();
 	// 逻辑像素 → 物理像素
 	float toPx(float logical) const;
+	float getSliderWidth() const;
 private:
 	Ling::Node* contentNode;
 	std::vector<Ling::Button*> colorBtns;
@@ -85,7 +88,7 @@ private:
 	// 背景/边框画刷缓存：layout() 每次刷新都会调 paintBorder，别在里面重复建
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushBg, brushBorder;
 	// 铺满窗口的画布，画的是背景与带箭头的边框，按钮都在 contentNode 上，盖在它上面
-	Ling::Canvas* canvas{ nullptr };
+	PinCanvas* canvas{ nullptr };
 	bool isVisible{ false };
 	bool hasTools{ false };
 	bool centerOnBtn{ false };

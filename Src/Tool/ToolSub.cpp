@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "../Win/WinPin.h"
+#include "../Win/PinCanvas.h"
 #include "../Lang.h"
 #include "../Setting.h"
 #include "../Tip.h"
@@ -71,7 +72,7 @@ void ToolSub::onCreated()
 	d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), brushBg.GetAddressOf());
 	d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(0xA8A8A8), brushBorder.GetAddressOf());
 	// 画布先建，才排在 contentNode 之前，按钮才不会被背景盖住
-	canvas = body->makeChild<Ling::Canvas>();
+	canvas = body->makeChild<PinCanvas>();
 	canvas->setPositionType(Ling::Position::Absolute);
 	canvas->setSizePercent(100.f, 100.f);
 	contentNode = body->makeChild<Ling::Node>();
@@ -82,6 +83,7 @@ void ToolSub::onCreated()
 	contentNode->setPosition(Ling::Edge::Right, borderW);
 	contentNode->setPosition(Ling::Edge::Bottom, borderW);
 	contentNode->setFlexDirection(Ling::FlexDirection::Row);
+	contentNode->setAlignItems(Ling::Align::Center);
 	// 滑块的数值提示：Slider 没有 hover 事件，就在窗口级 mousemove 里自己判位置。
 	// 显示出来后横向跟着鼠标走（同 2.4.25）；离开滑块只收自己这一个提示，
 	// 不能无条件 hide()：颜色按钮的 onLeave 排在这个回调后面，会把它刚显示出来的提示误关掉。
@@ -105,6 +107,7 @@ void ToolSub::beginTool(const std::wstring& id)
 	// 按钮和滑块马上要被销毁，onLeave 不会触发，提示得手动收掉
 	tip->hide();
 	contentNode->removeAllChildren();
+	slider = nullptr;
 	curToolId = id;
 	auto cfg = findSliderCfg(id);
 	if (!cfg) return;
@@ -363,9 +366,11 @@ void ToolSub::initSlider()
 {
 	slider = contentNode->makeChild<ToolSlider>();
 	slider->setSizePreview(curToolId == L"line");
+	slider->setPreviewScale(win->scale);
 	// 尺寸从字段来，别写字面量：initSize 按同样的字段算窗口宽度，
 	// 两边各写一份的话改了一处就会宽度不匹配（flex 会把误差压在按钮和滑块上）。
-	slider->setWidth(sliderSize);
+	slider->setWidth(getSliderWidth());
+	slider->setFlexShrink(0.f);
 	slider->setMarginLeft(sliderMargin);
 	slider->setMarginRight(sliderMargin);
 	slider->setHeightPercent(100.f);
@@ -379,6 +384,7 @@ void ToolSub::initSlider()
 		Setting::get()->setToolNum(curToolId, curSliderKey, val);
 		// 正在编辑的文本要立刻跟着变字号，不然得点完再看效果
 		win->onToolStyleChanged();
+		if (curToolId == L"line") win->layoutTools();
 	});
 }
 
@@ -393,7 +399,29 @@ float ToolSub::getDesiredHeight()
 	// 视觉高度（btnSize）与 ToolMain 的 h 保持一致 —— ToolMain 也是 h = btnSize，
 	// 边框画在这个高度之内、不额外占空间；上面再加箭头区域。
 	// 两段各自吸附到整数像素后再相加，避免和界内取整的差异。
-	return toPx(btnSize) + toPx(marginTop);
+	float contentHeight = toPx(btnSize);
+	if (hasTools && curToolId == L"line") {
+		const auto diameter = LineCursor::dotDiameter(getSliderVal() * win->scale);
+		contentHeight = std::max(contentHeight, diameter + 2.f * dpi + 2.f * toPx(borderW));
+	}
+	return std::ceil(contentHeight) + toPx(marginTop);
+}
+
+float ToolSub::getSliderWidth() const
+{
+	if (curToolId != L"line") return sliderSize;
+	return sliderSize + LineCursor::dotDiameter(sliderMax * dpi * win->scale) / dpi + 2.f;
+}
+
+void ToolSub::syncLinePreview()
+{
+	if (!hasTools || curToolId != L"line" || !slider) return;
+	slider->setPreviewScale(win->scale);
+	slider->setWidth(getSliderWidth());
+	const auto count = sizeBtnCount + (sizeWithColors ? static_cast<int>(colors.size()) : 0);
+	const auto width = toPx(btnSize) * count + toPx(getSliderWidth()) + toPx(sliderMargin) * 2;
+	const auto height = getDesiredHeight();
+	if (w != width || h != height) setSize(width / dpi, height / dpi);
 }
 
 // 宽度 = 工具按钮 + 颜色按钮 + 滑块（含左右 margin）。
@@ -407,7 +435,7 @@ void ToolSub::initSize(int btnCount, bool withColors, bool centerOnBtn)
 	sizeWithColors = withColors;
 	auto count = btnCount + (withColors ? static_cast<int>(colors.size()) : 0);
 	// 宽度只按内容算，边框画在内容之内（与 ToolMain 一致，那边宽度也只累加按钮）。
-	auto pxW = toPx(btnSize) * count + toPx(sliderSize) + toPx(sliderMargin) * 2;
+	auto pxW = toPx(btnSize) * count + toPx(getSliderWidth()) + toPx(sliderMargin) * 2;
 	// setSize 收逻辑像素、内部再乘 dpi，所以这里把算好的物理宽高除回去
 	setSize(pxW / dpi, getDesiredHeight() / dpi);
 }

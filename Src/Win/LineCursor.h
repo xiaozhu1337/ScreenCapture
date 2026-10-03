@@ -9,6 +9,7 @@ public:
     LineCursor(const LineCursor&) = delete;
     LineCursor& operator=(const LineCursor&) = delete;
     HCURSOR get(float width, DWORD rgba);
+    static int dotDiameter(float displayWidth);
 private:
     HCURSOR cursor{ nullptr };
     int diameter{ 0 };
