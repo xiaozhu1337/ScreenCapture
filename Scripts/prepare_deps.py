@@ -29,7 +29,7 @@ def run(args, cwd=ROOT, capture=False):
         stdout=subprocess.PIPE if capture else None,
         encoding="utf-8", errors="replace",
     )
-    return result.stdout.strip() if capture else None
+    return result.stdout if capture else None
 
 
 def prepare_sources():
@@ -45,11 +45,25 @@ def prepare_sources():
                 run(["git", "remote", "add", "origin", url], cwd=destination)
                 run(["git", "fetch", "--depth", "1", "origin", revision], cwd=destination)
                 run(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=destination)
-        actual = run(["git", "rev-parse", "HEAD"], cwd=destination, capture=True)
+        actual = run(["git", "rev-parse", "HEAD"], cwd=destination, capture=True).strip()
         if actual != revision:
             raise RuntimeError(f"{destination} must be at {revision}; found {actual}.")
-        if run(["git", "status", "--porcelain", "--untracked-files=no"],
-               cwd=destination, capture=True):
+        patch = ROOT / "Scripts" / "patches" / "ling-message-window.patch"
+        if name == "Ling":
+            # Accept only our pinned patch, preserving the dependency integrity check.
+            original = run(["git", "show", "HEAD:include/App.h"],
+                           cwd=destination, capture=True)
+            patched = original.replace("HWND msgHwnd;", "HWND msgHwnd{ nullptr };")
+            current = (destination / "include" / "App.h").read_text(encoding="utf-8")
+            changed = run(["git", "diff", "--name-only", "HEAD"],
+                          cwd=destination, capture=True).strip()
+            if changed not in ("", "include/App.h") or current not in (original, patched):
+                raise RuntimeError(f"{destination} has modified dependency sources.")
+            if current == original:
+                run(["git", "apply", "--check", str(patch)], cwd=destination)
+                run(["git", "apply", str(patch)], cwd=destination)
+        elif run(["git", "status", "--porcelain", "--untracked-files=no"],
+                 cwd=destination, capture=True):
             raise RuntimeError(f"{destination} has modified dependency sources.")
 
 

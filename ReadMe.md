@@ -54,7 +54,7 @@ mise exec -- xmake f -p windows -a x64 -m release --vs=2026
 mise exec -- xmake
 ```
 
-Release 可执行文件输出到 `build/windows/x64/release/ScreenCapture.exe`。首次构建自动下载固定版本的 Ling（含 Yoga）和 gifski 1.34.0 到 `build/deps`，通过 Cargo 构建 gifski 静态库，再由 xmake 编译 Ling、Yoga 和应用；无需设置原 Visual Studio 项目中的绝对依赖路径。依赖缓存与构建产物不提交到 Git。
+Release 可执行文件输出到 `build/windows/x64/release/ScreenCapture.exe`。首次构建自动下载固定版本的 Ling（含 Yoga）和 gifski 1.34.0 到 `build/deps`，通过 Cargo 构建 gifski 静态库，再由 xmake 编译 Ling、Yoga 和应用；无需设置原 Visual Studio 项目中的绝对依赖路径。构建时会给固定版本的 Ling 应用消息窗口句柄初始化补丁，修复后台自启时进程存活但托盘和快捷键不可用的问题。依赖缓存与构建产物不提交到 Git。
 
 需要代理时，在运行以上命令的环境中配置 `HTTP_PROXY`、`HTTPS_PROXY` 和 `CARGO_HTTP_PROXY`。首次构建需要联网，依赖准备完成后可重复进行本地构建。
 
@@ -75,7 +75,7 @@ mise exec -- xmake build ScreenCaptureTests
 & './build/tests/release/ScreenCaptureTests.exe' '--gui=true' '--auto-quit=true'
 ```
 
-测试使用独立输出目录中的临时配置，不修改用户的配置。第一条测试检查快捷键解析、配置持久化和多显示器位置计算；第二条需要可交互的桌面，打开真实窗口，检查钉图、普通滚轮缩放、动态线宽光标、菜单实际鼠标点击、线条绘制与撤销重做，以及中英文设置页面的布局。界面截图保存到 `__tmp`。Debug 模式下把测试路径中的 `release` 换成 `debug`。
+测试使用独立输出目录中的临时配置，不修改用户的配置。两条测试均需要运行着资源管理器的可交互桌面。第一条测试检查启动消息窗口、托盘注册、快捷键解析、配置持久化和多显示器位置计算；第二条打开真实窗口，检查钉图、普通滚轮缩放、动态线宽光标、菜单实际鼠标点击、线条绘制与撤销重做，以及中英文设置页面的布局。界面截图保存到 `__tmp`。Debug 模式下把测试路径中的 `release` 换成 `debug`。
 
 ## 命令行
 

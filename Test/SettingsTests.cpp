@@ -9,6 +9,7 @@
 #include <stdexcept>
 
 void testGuiFeatures();
+void testStartup();
 
 namespace {
     void require(bool value, const char* message)
@@ -104,12 +105,13 @@ int main(int argc, char** argv)
         }
         else {
             require(Ling::init(), "Ling initialization failed");
+            testStartup();
             Setting::init();
             Lang::init();
             testShortcuts();
             testPlacement();
             testToolbarConfig();
-            std::cout << "Shortcut, placement and menu configuration tests passed\n";
+            std::cout << "Startup, shortcut, placement and menu configuration tests passed\n";
         }
     }
     catch (const std::exception& error) {
