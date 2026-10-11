@@ -303,6 +303,8 @@ void testGuiFeatures()
     GetMonitorInfo(MonitorFromWindow(cap->hwnd, MONITOR_DEFAULTTOPRIMARY), &info);
     auto work = info.rcWork;
     region = { work.left + 80, work.bottom - 240, std::min(work.left + 680, work.right - 20), work.bottom - 8 };
+    SetForegroundWindow(cap->hwnd);
+    require(GetForegroundWindow() == cap->hwnd, "Escape regression test must start in the foreground");
     selectRegion(cap, region);
     auto toolbar = findWindow<ToolCap>();
     require(toolbar && findButton(toolbar->body.get(), L"line"), "Configured line must appear in the first toolbar");
@@ -317,6 +319,29 @@ void testGuiFeatures()
         "Promoted line must select line and display its style controls");
     require(pin->toolMain->y >= region.top && pin->toolSub->y + pin->toolSub->h <= work.bottom,
         "Main and sub toolbar group must stay visible at the bottom");
+    require(GetFocus() == pin->hwnd || GetFocus() == pin->toolMain->hwnd,
+        "Selecting line must keep keyboard focus on a window that handles Escape");
+    require(GetForegroundWindow() == pin->hwnd || GetForegroundWindow() == pin->toolMain->hwnd,
+        "Escape regression test must own the foreground window");
+    const auto emptyPin = pin->hwnd;
+    INPUT escape[2]{};
+    for (auto& input : escape) {
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = VK_ESCAPE;
+    }
+    escape[1].ki.dwFlags = KEYEVENTF_KEYUP;
+    require(SendInput(2, escape, sizeof(INPUT)) == 2, "Escape input must reach the foreground window");
+    pump();
+    require(!IsWindow(emptyPin), "Escape must close the new line window before drawing any strokes");
+    WinCap::init();
+    cap = WinCap::get();
+    selectRegion(cap, region);
+    toolbar = findWindow<ToolCap>();
+    require(toolbar != nullptr, "Capture toolbar must reopen after Escape");
+    click(toolbar->body.get(), L"line");
+    pump();
+    pin = findWindow<WinPin>();
+    require(pin != nullptr, "Line window must reopen after Escape");
     const auto originalLineWidth = pin->toolSub->getSliderVal();
     pin->toolSub->setShapeSliderVal(L"line", 2.f * pin->toolSub->dpi);
     auto thinCursor = requestCursor(pin);
@@ -465,6 +490,12 @@ void testGuiFeatures()
     rectSlider->setValue(rectSlider->getValue() + 2.f);
     require(sliderThumb(rectSlider).Geometry().as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius().x == rectRadius,
         "Other tools must keep their original fixed slider dot size");
+    for (const auto& tool : { L"rect", L"ellipse", L"arrow", L"number", L"line", L"text", L"mosaic", L"eraser" }) {
+        pin->toolMain->selectTool(tool);
+        pump();
+        require(GetFocus() == pin->toolMain->hwnd,
+            "Switching drawing tools must keep keyboard focus on the main toolbar");
+    }
     pin->close();
     pump();
 

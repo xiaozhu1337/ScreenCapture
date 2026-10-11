@@ -421,7 +421,10 @@ void ToolSub::syncLinePreview()
 	const auto count = sizeBtnCount + (sizeWithColors ? static_cast<int>(colors.size()) : 0);
 	const auto width = toPx(btnSize) * count + toPx(getSliderWidth()) + toPx(sliderMargin) * 2;
 	const auto height = getDesiredHeight();
-	if (w != width || h != height) setSize(width / dpi, height / dpi);
+	if (w != width || h != height) {
+		SetWindowPos(hwnd, nullptr, 0, 0, static_cast<int>(width), static_cast<int>(height),
+			SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+	}
 }
 
 // 宽度 = 工具按钮 + 颜色按钮 + 滑块（含左右 margin）。
@@ -436,8 +439,9 @@ void ToolSub::initSize(int btnCount, bool withColors, bool centerOnBtn)
 	auto count = btnCount + (withColors ? static_cast<int>(colors.size()) : 0);
 	// 宽度只按内容算，边框画在内容之内（与 ToolMain 一致，那边宽度也只累加按钮）。
 	auto pxW = toPx(btnSize) * count + toPx(getSliderWidth()) + toPx(sliderMargin) * 2;
-	// setSize 收逻辑像素、内部再乘 dpi，所以这里把算好的物理宽高除回去
-	setSize(pxW / dpi, getDesiredHeight() / dpi);
+	// Geometry changes must preserve keyboard focus on the image or main toolbar.
+	SetWindowPos(hwnd, nullptr, 0, 0, static_cast<int>(pxW), static_cast<int>(getDesiredHeight()),
+		SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
 }
 
 void ToolSub::refreshSize()
@@ -493,12 +497,13 @@ void ToolSub::updatePosition(const RECT& workArea)
 	if (finalX > upperX) finalX = upperX;
 	// 箭头始终指向按钮中心的屏幕位置，换算成窗口内坐标
 	arrowX = mainX + btnCenterX - finalX;
-	setPosition(finalX, static_cast<int>(py));
+	SetWindowPos(hwnd, nullptr, finalX, static_cast<int>(py), 0, 0,
+		SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
 	if (isVisible) {
 		refresh();
 	}
 	else {
-		show();
+		ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 		isVisible = true;
 	}
 }
