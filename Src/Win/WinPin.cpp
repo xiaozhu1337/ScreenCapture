@@ -63,6 +63,10 @@ WinPin::WinPin(int x, int y, int w, int h, const std::vector<BYTE>* data) : Ling
 		if (isMouseDown || space == 0.f) return;
 		// Ling reports 60 logical pixels per wheel notch; preserve fractional and multiple notches.
 		const float steps = space / (60.f * dpi);
+		if (!toolMain->curId.empty()) {
+			toolSub->setShapeSliderVal(toolMain->curId, toolSub->getSliderVal() + steps * toolSub->dpi);
+			return;
+		}
 		applyScale(scale * std::pow(1.1f, steps), pos);
 	});
 	onTimer.add([this](UINT id) {this->onTimerCB(id);});

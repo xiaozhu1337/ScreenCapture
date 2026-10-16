@@ -13,6 +13,7 @@
 #include "Tool/ToolSlider.h"
 #include "Tool/ToolRegistry.h"
 #include "Shape/ShapeLine.h"
+#include "Shape/ShapeText.h"
 #include <array>
 #include <fstream>
 #include <stdexcept>
@@ -406,7 +407,8 @@ void testGuiFeatures()
     pin->onMouseDown(POINT{ 40, 40 }, false);
     require(requestCursor(pin) == drawingCursor, "The dot cursor must remain active while drawing a line");
     wheel(pin, POINT{ 40, 40 }, WHEEL_DELTA);
-    require(std::abs(pin->scale - 1.f) < 0.0001f, "Wheel input must not change coordinates during a stroke");
+    require(std::abs(pin->scale - 1.f) < 0.0001f && pin->toolSub->getSliderVal() == originalLineWidth,
+        "Wheel input must not change scale or pen width during a stroke");
     pin->onMouseMove(POINT{ 150, 100 });
     pin->onMouseUp(POINT{ 150, 100 }, false);
     require(pin->history->shapes.size() == 1 && dynamic_cast<ShapeLine*>(pin->history->shapes[0].get()),
@@ -451,8 +453,35 @@ void testGuiFeatures()
     pin->toolSub->setShapeSliderVal(L"line", 8.f * pin->toolSub->dpi);
     const auto configuredWidth = pin->toolSub->getSliderVal();
     const auto normalCursorSize = cursorSize(requestCursor(pin));
+    wheel(pin, POINT{ 150, 100 }, WHEEL_DELTA * 2);
+    require(std::abs(pin->scale - 1.f) < 0.0001f && widthSlider->getValue() == 10.f,
+        "Wheel over an existing line must adjust selected pen width without zooming");
+    require(cursorSize(requestCursor(pin)) > normalCursorSize,
+        "Wheel width changes must immediately enlarge the line cursor");
+    require(sliderThumb(widthSlider).Geometry().as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius().x * 2.f
+        == std::max(3.f, std::ceil(pin->toolSub->getSliderVal())),
+        "Wheel width changes must synchronize the slider dot diameter");
+    require(Setting::get()->getToolNum(L"line", L"width", 0.f) == 10.f,
+        "Wheel width changes must persist the selected tool size");
+    wheel(pin, POINT{ 150, 100 }, -WHEEL_DELTA * 2);
+    require(pin->toolSub->getSliderVal() == configuredWidth, "Wheel down must reverse pen width changes");
+    wheel(pin, POINT{ 150, 100 }, 0);
+    require(pin->toolSub->getSliderVal() == configuredWidth, "Zero wheel delta must not change pen width");
+    wheel(pin, POINT{ 150, 100 }, 32760);
+    require(widthSlider->getValue() == 60.f, "Wheel width must clamp to the slider maximum");
+    wheel(pin, POINT{ 150, 100 }, WHEEL_DELTA);
+    require(widthSlider->getValue() == 60.f && std::abs(pin->scale - 1.f) < 0.0001f,
+        "Wheel at the tool size limit must not fall through to zoom");
+    wheel(pin, POINT{ 150, 100 }, -32760);
+    require(widthSlider->getValue() == 1.f, "Wheel width must clamp to the slider minimum");
+    pin->toolSub->setShapeSliderVal(L"line", configuredWidth);
+    pin->toolMain->cancelSelect();
     wheel(pin, POINT{ 200, 100 }, WHEEL_DELTA * 2);
-    require(std::abs(pin->scale - 1.21f) < 0.0001f, "Wheel zoom must work with line selected and multiple notches");
+    require(std::abs(pin->scale - 1.21f) < 0.0001f, "Wheel must zoom with no drawing tool selected");
+    pin->toolMain->selectTool(L"line");
+    pump();
+    widthSlider = findSlider(pin->toolSub->body.get());
+    require(widthSlider != nullptr, "Reselecting line must restore its width slider");
     require(cursorSize(requestCursor(pin)) > normalCursorSize, "The dot cursor must follow the displayed stroke scale");
     const auto zoomedRadius = sliderThumb(widthSlider).Geometry()
         .as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius().x;
@@ -474,8 +503,17 @@ void testGuiFeatures()
     const auto zoomedStroke = renderShape(pin->history->shapes.back().get(), imageSize);
     require(zoomedStroke[(125 * imageSize.width + 250) * 4 + 3] != 0,
         "Drawing at zoomed coordinates must map back to original image coordinates");
+    wheel(pin, POINT{ 242, 121 }, WHEEL_DELTA);
+    require(std::abs(pin->scale - 1.21f) < 0.0001f && widthSlider->getValue() == 9.f,
+        "Wheel on a zoomed pin must change logical pen width independently of image scale");
+    wheel(pin, POINT{ 242, 121 }, -WHEEL_DELTA);
+    pin->toolMain->cancelSelect();
     wheel(pin, POINT{ 242, 121 }, -WHEEL_DELTA * 2);
     require(std::abs(pin->scale - 1.f) < 0.0001f, "Multiple wheel steps must reverse symmetrically");
+    pin->toolMain->selectTool(L"line");
+    pump();
+    widthSlider = findSlider(pin->toolSub->body.get());
+    require(widthSlider != nullptr, "Returning to line after zoom must restore its slider");
     require(sliderThumb(widthSlider).Geometry().as<winrt::Windows::UI::Composition::CompositionEllipseGeometry>().Radius().x * 2.f
         == std::max(3.f, std::ceil(configuredWidth)), "Reversing zoom must restore the exact slider dot diameter");
     pin->toolSub->setShapeSliderVal(L"line", originalLineWidth);
@@ -495,7 +533,40 @@ void testGuiFeatures()
         pump();
         require(GetFocus() == pin->toolMain->hwnd,
             "Switching drawing tools must keep keyboard focus on the main toolbar");
+        auto sizeSlider = findSlider(pin->toolSub->body.get());
+        require(sizeSlider != nullptr, "Every drawing tool must provide size controls");
+        sizeSlider->setValue(12.f);
+        const auto size = sizeSlider->getValue();
+        wheel(pin, POINT{ 200, 100 }, WHEEL_DELTA);
+        require(sizeSlider->getValue() == size + 1.f && std::abs(pin->scale - 1.f) < 0.0001f,
+            "Wheel must enlarge the selected drawing tool without zooming");
+        wheel(pin, POINT{ 200, 100 }, -WHEEL_DELTA);
+        require(sizeSlider->getValue() == size, "Wheel must shrink the selected drawing tool symmetrically");
     }
+    pin->toolMain->selectTool(L"text");
+    SetForegroundWindow(pin->hwnd);
+    SetFocus(pin->hwnd);
+    pump();
+    auto textShape = dynamic_cast<ShapeText*>(pin->history->createShape(L"text", 200, 100));
+    require(textShape != nullptr, "The text tool must create a text shape");
+    require(textShape->isEditing, "The text tool must start editing");
+    auto textBox = pin->getTextBox();
+    textBox->setText(L"Wheel size");
+    pump();
+    const auto textHeight = textBox->h;
+    const auto fontSize = pin->toolSub->getSliderVal();
+    wheel(pin, POINT{ 200, 100 }, WHEEL_DELTA);
+    pump();
+    require(textShape->isEditing && textBox->isFocused() && textBox->getText() == L"Wheel size",
+        "Changing font size by wheel must preserve the active text edit");
+    require(pin->toolSub->getSliderVal() == fontSize + pin->toolSub->dpi && textBox->h > textHeight
+        && std::abs(pin->scale - 1.f) < 0.0001f,
+        "Wheel must enlarge the active text without zooming the pin");
+    textShape->finishEdit();
+    const auto textPixels = renderShape(textShape, imageSize);
+    wheel(pin, POINT{ 200, 100 }, WHEEL_DELTA);
+    require(renderShape(textShape, imageSize) == textPixels,
+        "Changing the text tool size must leave committed text unchanged");
     pin->close();
     pump();
 
