@@ -10,17 +10,19 @@ Windows 版仍使用原有 Ling / Direct2D 实现和构建流程。
 - 打开图片、拖动框选、裁剪，保存与复制整图或选区。
 - 画笔、矩形、椭圆、箭头、文字、颜色和线宽调整、标注撤销与重做。
 - PNG 保存、图片剪贴板、置顶钉图、系统托盘和二维码识别。
+- 默认托盘常驻；菜单含截图、截图 OCR、打开图片、设置、关于和退出，重复启动转发给已有实例。
+- 通用、快捷键、编辑菜单和关于四页设置，YAML 配置持久化，XDG 登录自启及 KDE 全局快捷键。
 - 中英文 OCR：使用专门 fork 并移植的 [ImageReader](https://github.com/xiaozhu1337/ImageReader/tree/linux-support)，
   保留原 TinyOCR 引擎和 PP-OCRv6 模型，本地推理，无需上传图片。
 
 滚动长截图、GIF/MP4 录屏、自动窗口吸附、马赛克、橡皮擦、标注对象编辑、
-取景放大/拾色、自由缩放、应用内全局快捷键配置和多语言设置尚未移植。
+取景放大/拾色、自由缩放和多语言设置尚未移植。
 Linux 界面目前使用中文。这里列出的功能范围与 Windows 版不同。
 
 ## 构建
 
 需要 mise、Git、C++ 编译器、pkg-config，以及本机的 Qt 6 Base、Qt 6 Wayland、
-OpenCV 开发文件和 xmake。当前机器已经安装这些系统组件；mise 选用本机
+OpenCV 开发文件、yaml-cpp、KDE Frameworks 6 的 KGlobalAccel 开发文件和 xmake。当前机器已经安装这些系统组件；mise 选用本机
 xmake 以匹配系统 ncurses，并管理 Python 与 ONNX Runtime 的固定版本。
 OpenCV 4 和 5 均可使用。当前下载配方和 OCR 推理运行库仅覆盖 Linux x86_64。
 
@@ -55,12 +57,17 @@ lib/libonnxruntime.so.1
 './build/linux/x86_64/release/ScreenCapture'
 './build/linux/x86_64/release/ScreenCapture' --enter=ocr
 './build/linux/x86_64/release/ScreenCapture' --enter=tray
+'./build/linux/x86_64/release/ScreenCapture' --enter=settings
 './build/linux/x86_64/release/ScreenCapture' --image '/absolute/path/image.png'
 './build/linux/x86_64/release/ScreenCapture' --output '/absolute/path/screenshot.png'
 ```
 
-正常启动会显示桌面提供的截图界面，完成后进入编辑窗口。`--enter=ocr` 在截图后
-直接识别文字；也可在编辑窗口框选后点击“文字识别 OCR”，只识别当前选区。
+正常启动会创建托盘并显示桌面提供的截图界面，完成后进入编辑窗口。
+取消截图或关闭编辑窗口后托盘仍保留，从托盘菜单选择“退出”才结束常驻进程。
+托盘左键截图，右键打开菜单；KDE 可能把图标收进托盘的隐藏项。
+`--enter=tray` 只进入托盘，`--enter=settings` 直接打开设置。
+设置可关闭普通启动时立即截图，显式 `--enter=cap` 仍会截图。
+`--enter=ocr` 在截图后直接识别文字；也可在编辑窗口框选后点击“文字识别 OCR”，只识别当前选区。
 右键清除选区。没有选区时，保存、复制、OCR 和二维码识别使用整张图片。
 底图像素坐标与窗口缩放分离，导出保持原图像素尺寸。
 
@@ -68,7 +75,8 @@ lib/libonnxruntime.so.1
 `Ctrl+Z` 撤销、`Ctrl+Shift+Z` 重做、`F3` 切换置顶、`Esc` 关闭。
 Wayland 下，置顶行为最终取决于窗口管理器。
 
-`--auto-quit=true` 在成功保存后关闭窗口。复制后保留窗口，以继续提供 Wayland
+`--auto-quit=true` 在成功保存后关闭窗口。它和 `--output` 使用独立的一次性进程，
+不会创建托盘或改写常驻进程的偏好。复制后保留窗口，以继续提供 Wayland
 剪贴板数据；粘贴完成后再关闭。`--enter=pin` 进入同一编辑窗口。
 不支持的入口，例如 `--enter=long`，会返回参数错误。
 
@@ -79,15 +87,24 @@ mise exec -- python 'Scripts/linux/build.py' --install '/home/cat/.local'
 ```
 
 安装包含 ScreenCapture、ImageReader、模型、ONNX Runtime 及桌面菜单入口。
-确保安装目录的 `bin` 在桌面会话 PATH 中。KDE 可在“系统设置 → 键盘 → 快捷键”中
-添加命令 `/home/cat/.local/bin/ScreenCapture` 并绑定 Print；文字识别可绑定
-`/home/cat/.local/bin/ScreenCapture --enter=ocr`。
+确保安装目录的 `bin` 在桌面会话 PATH 中。截图的默认全局快捷键是 `Ctrl+Alt+A`，
+可在应用的“设置 → 快捷键”中修改、清空或另设全局 OCR 快捷键。全局快捷键当前使用
+KDE 的 KGlobalAccel 服务，其他桌面可通过系统快捷键启动命令。
+
+设置保存于 `$XDG_CONFIG_HOME/xland/ScreenCapture/config.yaml`，默认位置为
+`~/.config/xland/ScreenCapture/config.yaml`，每个字段均有注释。颜色、线宽与最近保存目录
+会自动记住；工具栏位置、工具的启用状态与顺序会立即应用到已打开的编辑窗口。
+配置损坏时保留原文件并使用默认值，只有在设置窗口明确保存才替换。
+登录自启默认关闭，启用后写入
+`~/.config/autostart/io.github.xland.ScreenCapture.desktop`，以托盘待命模式启动。
+若启用后移动了可执行文件，请在新位置重新关闭再开启自启。
 
 ## 验证与排错
 
 构建脚本自动检查：原始像素尺寸、透明度、放大/缩小后的选区与裁剪、双击复制、
 单行图片、标注撤销/重做、真实 OCR 插件的中英文识别、无效图片/模型的错误码、
-主程序 PNG 导出，以及隔离 D-Bus 会话中的门户成功/取消/拒绝与异常响应。
+主程序 PNG 导出，配置保存/恢复/损坏保护、设置窗口、工具栏联动、XDG 自启，
+以及隔离 D-Bus 会话中的门户成功/取消/拒绝与异常响应、一次性输出和单实例转发。
 这些检查使用离屏 Qt，不代替真实桌面门户测试。
 
 另已在当前原生 Wayland 会话打开并检查编辑窗口，执行画布、OCR 集成与导出检查。

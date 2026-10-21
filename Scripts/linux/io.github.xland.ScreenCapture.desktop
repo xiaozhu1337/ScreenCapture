@@ -9,7 +9,7 @@ Icon=camera-photo
 Terminal=false
 Categories=Graphics;
 Keywords=screenshot;capture;OCR;
-Actions=OCR;Tray;
+Actions=OCR;Tray;Settings;
 
 [Desktop Action OCR]
 Name=Text recognition
@@ -20,3 +20,8 @@ Exec=ScreenCapture --enter=ocr
 Name=Start in system tray
 Name[zh_CN]=启动到系统托盘
 Exec=ScreenCapture --enter=tray
+
+[Desktop Action Settings]
+Name=Settings
+Name[zh_CN]=设置
+Exec=ScreenCapture --enter=settings

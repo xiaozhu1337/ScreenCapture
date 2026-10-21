@@ -1,5 +1,6 @@
 #include "Editor.h"
 #include "Canvas.h"
+#include "Settings.h"
 extern "C" {
 #include "quirc/quirc.h"
 }
@@ -16,6 +17,7 @@ extern "C" {
 #include <QProcess>
 #include <QPushButton>
 #include <QSaveFile>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -27,21 +29,25 @@ extern "C" {
 #include <cstring>
 #include <memory>
 
-Editor::Editor(QImage image, bool quit, QWidget* parent) : QMainWindow(parent), autoQuit(quit)
+Editor::Editor(QImage image, bool quit, Settings* preferences, QWidget* parent)
+    : QMainWindow(parent), settings(preferences), autoQuit(quit)
 {
     setAttribute(Qt::WA_DeleteOnClose);
     setWindowTitle(tr("ScreenCapture - 截图编辑"));
     canvas = new Canvas(std::move(image), this);
     setCentralWidget(canvas);
-    auto* tools = addToolBar(tr("标注"));
+    tools = addToolBar(tr("标注"));
     tools->setMovable(false);
     auto* group = new QActionGroup(this);
     const QList<QPair<QString, Canvas::Tool>> definitions{
         {tr("选择"), Canvas::Tool::Select}, {tr("画笔"), Canvas::Tool::Pen},
         {tr("矩形"), Canvas::Tool::Rectangle}, {tr("椭圆"), Canvas::Tool::Ellipse},
         {tr("箭头"), Canvas::Tool::Arrow}, {tr("文字"), Canvas::Tool::Text}};
+    const QStringList ids{"select", "pen", "rectangle", "ellipse", "arrow", "text"};
+    int index = 0;
     for (const auto& [name, tool] : definitions) {
         auto* action = tools->addAction(name);
+        action->setData(ids[index++]);
         action->setCheckable(true);
         action->setActionGroup(group);
         action->setChecked(tool == Canvas::Tool::Select);
@@ -49,24 +55,30 @@ Editor::Editor(QImage image, bool quit, QWidget* parent) : QMainWindow(parent), 
     }
     tools->addAction(tr("颜色"), this, [this] {
         const QColor color = QColorDialog::getColor(canvas->color, this, tr("标注颜色"));
-        if (color.isValid()) canvas->color = color;
-    });
-    auto* width = new QSpinBox(tools);
+        if (color.isValid()) {
+            canvas->color = color;
+            if (settings && !autoQuit) { settings->values.color = color; settings->save(); }
+        }
+    })->setObjectName("annotationColor");
+    width = new QSpinBox(tools);
     width->setRange(1, 100);
     width->setValue(canvas->lineWidth);
     width->setPrefix(tr("线宽 "));
-    connect(width, &QSpinBox::valueChanged, this, [this](int value) { canvas->lineWidth = value; });
+    connect(width, &QSpinBox::valueChanged, this, [this](int value) {
+        canvas->lineWidth = value;
+        if (settings && !autoQuit) { settings->values.lineWidth = value; settings->save(); }
+    });
     tools->addWidget(width);
     tools->addAction(tr("裁剪"), canvas, &Canvas::crop);
     tools->addAction(tr("撤销"), QKeySequence::Undo, canvas, &Canvas::undo);
     tools->addAction(tr("重做"), QKeySequence::Redo, canvas, &Canvas::redo);
     addToolBarBreak();
-    auto* actions = addToolBar(tr("截图"));
+    actions = addToolBar(tr("截图"));
     actions->setMovable(false);
     actions->addAction(tr("新截图"), QKeySequence("Ctrl+N"), this, [this] { if (newCapture) newCapture(); });
     actions->addAction(tr("复制图片"), QKeySequence::Copy, this, &Editor::copy);
     actions->addAction(tr("保存图片"), QKeySequence::Save, this, &Editor::save);
-    auto* pin = actions->addAction(tr("置顶钉图"));
+    pin = actions->addAction(tr("置顶钉图"));
     pin->setCheckable(true);
     pin->setShortcut(QKeySequence("F3"));
     connect(pin, &QAction::toggled, this, [this](bool checked) {
@@ -79,6 +91,41 @@ Editor::Editor(QImage image, bool quit, QWidget* parent) : QMainWindow(parent), 
     canvas->copied = [this] { copy(); };
     statusBar()->showMessage(tr("拖动框选区域；右键清除选区。保存、复制和 OCR 使用当前选区，未框选时使用整张图片。"));
     resize(1100, 760);
+    if (settings) {
+        connect(settings, &Settings::changed, this, &Editor::applySettings);
+        applySettings();
+    }
+}
+
+void Editor::applySettings()
+{
+    const auto& values = settings->values;
+    canvas->color = values.color;
+    canvas->lineWidth = values.lineWidth;
+    const QSignalBlocker blocked(width);
+    width->setValue(values.lineWidth);
+    pin->setShortcut(values.pinKey);
+    auto* anchor = tools->findChild<QAction*>("annotationColor");
+    const auto all = tools->actions();
+    for (auto* action : all) {
+        if (!action->data().isValid()) continue;
+        const QString id = action->data().toString();
+        const bool visible = id == "select" || values.tools.contains(id);
+        action->setVisible(visible);
+        if (!visible && action->isChecked()) {
+            canvas->setTool(Canvas::Tool::Select);
+            for (auto* candidate : all) if (candidate->data() == "select") candidate->setChecked(true);
+        }
+    }
+    for (const auto& id : values.tools)
+        for (auto* action : all) if (action->data() == id) tools->insertAction(anchor, action);
+    removeToolBarBreak(actions);
+    removeToolBar(tools);
+    removeToolBar(actions);
+    const auto area = values.toolbarBottom ? Qt::BottomToolBarArea : Qt::TopToolBarArea;
+    addToolBar(area, tools);
+    addToolBarBreak(area);
+    addToolBar(area, actions);
 }
 
 void Editor::copy()
@@ -90,7 +137,8 @@ void Editor::copy()
 
 void Editor::save()
 {
-    const QString path = QFileDialog::getSaveFileName(this, tr("保存截图"), "Screenshot.png", tr("PNG 图片 (*.png)"));
+    const QString initial = settings ? QDir(settings->values.saveDirectory).filePath("Screenshot.png") : "Screenshot.png";
+    const QString path = QFileDialog::getSaveFileName(this, tr("保存截图"), initial, tr("PNG 图片 (*.png)"));
     if (path.isEmpty()) return;
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || !canvas->result().save(&file, "PNG") || !file.commit()) {
@@ -98,6 +146,7 @@ void Editor::save()
         QMessageBox::warning(this, tr("保存失败"), tr("无法保存图片，请检查目标路径和可用空间。"));
         return;
     }
+    if (settings && !autoQuit) { settings->values.saveDirectory = QFileInfo(path).absolutePath(); settings->save(); }
     statusBar()->showMessage(tr("已保存：%1").arg(path), 8000);
     if (autoQuit) close();
 }

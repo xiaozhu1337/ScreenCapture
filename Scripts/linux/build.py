@@ -43,6 +43,8 @@ def main():
     tests = {**ENV, "QT_QPA_PLATFORM": "offscreen", "QT_FORCE_STDERR_LOGGING": "1",
              "PATH": str(output) + os.pathsep + os.environ.get("PATH", "")}
     run(str(ROOT / "build/tests/release/ScreenCaptureTests"), env=tests)
+    run("mise", "exec", "--", "xmake", "build", "ScreenCaptureDesktopTests")
+    run("dbus-run-session", "--", str(ROOT / "build/tests/release/ScreenCaptureDesktopTests"), env=tests)
     run("mise", "exec", "--", "xmake", "build", "ScreenCapturePortalTests")
     run("dbus-run-session", "--", str(ROOT / "build/tests/release/ScreenCapturePortalTests"), env=tests)
     if args.install:
