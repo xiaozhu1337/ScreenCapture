@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Application
+Name=ScreenCapture
+Name[zh_CN]=ScreenCapture 截图
+Comment=Capture, annotate and recognize Chinese and English text
+Comment[zh_CN]=截图、标注与中英文文字识别
+Exec=ScreenCapture
+Icon=camera-photo
+Terminal=false
+Categories=Graphics;
+Keywords=screenshot;capture;OCR;
+Actions=OCR;Tray;
+
+[Desktop Action OCR]
+Name=Text recognition
+Name[zh_CN]=截图识别文字
+Exec=ScreenCapture --enter=ocr
+
+[Desktop Action Tray]
+Name=Start in system tray
+Name[zh_CN]=启动到系统托盘
+Exec=ScreenCapture --enter=tray

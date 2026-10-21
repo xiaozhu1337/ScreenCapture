@@ -2,7 +2,7 @@
 
 ![banner](./Doc/banner.png)
 
-**ScreenCapture** 一个小巧但功能强大的Windows截图工具。
+**ScreenCapture** 一个小巧但功能强大的截图工具。Windows 版保留完整功能；新增的原生 Linux 版支持截图、基本标注、中英文 OCR 和二维码识别，功能范围与构建步骤见 [Linux 使用说明](./Doc/Linux.md)。
 
 ## 特性
 
@@ -36,6 +36,7 @@
 ## 支持的操作系统
 
 - Windows 10 1803 or Later
+- Linux x86_64（已在 CachyOS / KDE Wayland 构建并完成离屏功能测试；详见 [Linux 使用说明](./Doc/Linux.md)）
 
 ## 编译
 
