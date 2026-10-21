@@ -6,7 +6,7 @@ Windows 版仍使用原有 Ling / Direct2D 实现和构建流程。
 
 ## 已支持
 
-- 桌面门户截图，包括系统提供的区域、窗口或全屏选择。
+- 通过桌面门户非交互获取完整桌面图像，在编辑器内框选和裁剪。
 - 打开图片、拖动框选、裁剪，保存与复制整图或选区。
 - 画笔、矩形、椭圆、箭头、文字、颜色和线宽调整、标注撤销与重做。
 - PNG 保存、图片剪贴板、置顶钉图、系统托盘和二维码识别。
@@ -63,8 +63,9 @@ lib/libonnxruntime.so.1
 ```
 
 正常启动只创建托盘，不发起截图请求，也不会触发截图授权窗口。
-点击托盘“截图”、按全局快捷键或显式使用 `--enter=cap` 后，才会请求桌面门户截图；
-授权和取景窗口由桌面控制，截图完成后进入编辑窗口。
+点击托盘“截图”、按全局快捷键或显式使用 `--enter=cap` 后，才会请求桌面门户截图。
+首次授权后直接获取完整桌面图像并进入编辑窗口，随后可在编辑器内框选区域；
+不再每次打开 KDE 的范围、延迟和指针选择窗口。
 取消截图或关闭编辑窗口后托盘仍保留，从托盘菜单选择“退出”才结束常驻进程。
 托盘左键截图，右键打开菜单；KDE 可能把图标收进托盘的隐藏项。
 `--enter=tray` 只进入托盘，`--enter=settings` 直接打开设置。
@@ -102,6 +103,34 @@ KDE 的 KGlobalAccel 服务，其他桌面可通过系统快捷键启动命令�
 `~/.config/autostart/io.github.xland.ScreenCapture.desktop`，以托盘待命模式启动。
 若启用后移动了可执行文件，请在新位置重新关闭再开启自启。
 
+## 截图授权
+
+程序使用 `interactive=false` 请求截图。当前 KDE 门户可按应用身份保存首次授权，
+允许后后续截图以及重新启动程序均无需再次确认。原来的交互截图窗口每次都会出现，
+其中的允许操作不等于保存非交互截图授权。
+
+先安装上面的桌面入口，确保存在
+`~/.local/share/applications/io.github.xland.ScreenCapture.desktop`。
+本机 Qt 6.12 会用程序已设置的桌面 ID 自动向门户注册，因此从终端启动也按
+`io.github.xland.ScreenCapture` 保存权限。只有仓库中的 `.desktop` 文件还不够；
+未安装桌面入口时，门户可能把程序识别为启动它的 Konsole。
+
+通常首次在系统授权窗口允许即可。已有 `ask` 记录会继续每次询问，`no` 会直接拒绝。
+若希望明确始终允许当前用户的 ScreenCapture，可执行一次：
+
+```sh
+busctl --user call \
+  'org.freedesktop.impl.portal.PermissionStore' \
+  '/org/freedesktop/impl/portal/PermissionStore' \
+  'org.freedesktop.impl.portal.PermissionStore' \
+  SetPermission sbssas screenshot true screenshot 'io.github.xland.ScreenCapture' 1 yes
+```
+
+这项系统授权跨进程重启保存，允许该应用无需再次确认读取屏幕。
+程序自身不会写入或扩大系统授权；用户撤销授权后，截图仍会被拒绝。
+上述流程已在本机 `xdg-desktop-portal 1.22.1`、KDE 门户 `6.8.0` 验证，
+其他门户后端和旧版 Qt 的身份注册与授权行为需要分别确认。
+
 ## 验证与排错
 
 构建脚本自动检查：原始像素尺寸、透明度、放大/缩小后的选区与裁剪、双击复制、
@@ -111,10 +140,12 @@ KDE 的 KGlobalAccel 服务，其他桌面可通过系统快捷键启动命令�
 这些检查使用离屏 Qt，不代替真实桌面门户测试。
 
 另已在当前原生 Wayland 会话打开并检查编辑窗口，执行画布、OCR 集成与导出检查。
+为 ScreenCapture 保存允许权限后，已使用构建目录和安装目录中的程序各进行一次真实
+非交互截图，两个独立进程均直接导出 2560×1600 PNG，没有再次显示截图选择或授权窗口。
 
-真实桌面还需检查门户授权、取消截图、多个屏幕和混合缩放、中文输入、跨应用粘贴、
+真实桌面还需检查首次授权的拒绝/取消、多个屏幕和混合缩放、中文输入、跨应用粘贴、
 置顶和托盘。截图依赖 `xdg-desktop-portal` 与桌面后端，KDE 对应
-`xdg-desktop-portal-kde`，其授权或选择界面由桌面控制。
+`xdg-desktop-portal-kde`，最终授权行为由桌面控制。
 
 程序把警告和错误异步写入可执行文件旁的 `logs/errors.log`；目录不可写时输出到
 stderr。OCR 临时选区图片放在用户缓存目录的私有临时目录中，在识别结束或关闭

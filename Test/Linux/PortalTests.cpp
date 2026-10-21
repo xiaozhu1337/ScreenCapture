@@ -38,6 +38,8 @@ public:
         ++requests;
         if (fail) { bus.send(message.createErrorReply("org.freedesktop.DBus.Error.Failed", "Simulated failure")); return true; }
         const auto options = qdbus_cast<QVariantMap>(message.arguments().at(1));
+        check(options.contains("interactive") && !options.value("interactive").toBool(),
+              "Screenshots must use non-interactive mode so saved permission can be reused");
         QString sender = message.service().mid(1);
         sender.replace('.', '_');
         const QString path = "/org/freedesktop/portal/desktop/request/" + sender + "/" + options.value("handle_token").toString();

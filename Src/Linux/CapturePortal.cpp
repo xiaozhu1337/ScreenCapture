@@ -45,7 +45,7 @@ void CapturePortal::capture()
     }
     active = true;
     timer.start();
-    QVariantMap options{{"handle_token", token}, {"interactive", true}, {"modal", false}};
+    QVariantMap options{{"handle_token", token}, {"interactive", false}, {"modal", false}};
     auto* watcher = new QDBusPendingCallWatcher(portal.asyncCall("Screenshot", QString(), options), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher] {
         const QDBusPendingReply<QDBusObjectPath> reply = *watcher;
