@@ -1,22 +1,33 @@
 #pragma once
 #include <QColor>
 #include <QKeySequence>
+#include <QMap>
 #include <QObject>
 #include <QStringList>
 
+struct ToolStyle
+{
+    int size{2};
+    QColor color{"#cf1322"};
+    bool fill{false}, transparent{false}, bold{false}, italic{false}, rectangle{false};
+    bool operator==(const ToolStyle&) const = default;
+};
 struct Preferences
 {
-    bool startCapture{false};
+    Preferences();
+    bool startCapture{true};
     bool toolbarBottom{false};
-    QColor color{Qt::red};
-    int lineWidth{3};
+    QColor color{"#cf1322"};
+    int lineWidth{12};
     QString saveDirectory;
+    QString language{"zh-CN"};
     QKeySequence captureKey{QStringLiteral("Ctrl+Alt+A")};
     QKeySequence ocrKey;
     QKeySequence pinKey{QStringLiteral("F3")};
-    QStringList tools{"pen", "rectangle", "ellipse", "arrow", "text"};
+    QStringList captureToolbar{"mark", "long", "video", "ocr", "qrcode"};
+    QMap<QString, ToolStyle> toolPin;
+    QString restoreToken;
 };
-
 class Settings : public QObject
 {
     Q_OBJECT

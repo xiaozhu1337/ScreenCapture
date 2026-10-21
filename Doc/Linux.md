@@ -1,30 +1,43 @@
 # Linux 版本
 
-Linux 版使用 Qt 6 原生窗口，通过 xdg-desktop-portal 截图，适用于当前的
-CachyOS / KDE Wayland x86_64，也可在提供截图门户的 X11 桌面使用。
-Windows 版仍使用原有 Ling / Direct2D 实现和构建流程。
+Linux 版按仓库中的 Windows 实现对齐截图、贴图、设置及工具操作，使用 Qt 6、
+LayerShellQt 和桌面门户适配当前 CachyOS / KDE Wayland x86_64。
+Windows 的 Ling / Direct2D 实现与构建流程保持原样。
 
-## 已支持
+## 功能和操作
 
-- 通过桌面门户非交互获取完整桌面图像，在编辑器内框选和裁剪。
-- 打开图片、拖动框选、裁剪，保存与复制整图或选区。
-- 画笔、矩形、椭圆、箭头、文字、颜色和线宽调整、标注撤销与重做。
-- PNG 保存、图片剪贴板、置顶钉图、系统托盘和二维码识别。
-- 默认托盘常驻；菜单含截图、截图 OCR、打开图片、设置、关于和退出，重复启动转发给已有实例。
-- 通用、快捷键、编辑菜单和关于四页设置，YAML 配置持久化，XDG 登录自启及 KDE 全局快捷键。
-- 中英文 OCR：使用专门 fork 并移植的 [ImageReader](https://github.com/xiaozhu1337/ImageReader/tree/linux-support)，
-  保留原 TinyOCR 引擎和 PP-OCRv6 模型，本地推理，无需上传图片。
+- 托盘左键截图，右键菜单与 Windows 一致，仅有“设置”和“退出”；普通首次启动截图，
+  登录自启以托盘待命。升级保留原 YAML 中的启动偏好。
+- 全屏框选、窗口吸附、拖动选区、八方向调整、方向键微调、鼠标放大镜和颜色值。
+  右键或 `Esc` 退出，`F3` 贴图，`Enter` 或双击复制。
+- 选区确认后进入独立贴图。支持同时保留多张贴图、拖动和以光标为中心滚轮缩放；
+  主工具栏与样式栏悬浮在图片旁，右键取消当前工具或显示、隐藏工具栏。
+- 矩形、椭圆、箭头、序号、画笔、文字、马赛克和橡皮擦，支持对应的颜色、
+  粗细、填充、圆角、线型、字体与数字模式，并按工具分别记住样式。
+  绘制时的 `Shift` 约束、文字编辑、撤销和重做按 Windows 的规则处理。
+- 保存 PNG、复制图片后关闭当前截图或贴图；底图像素与界面缩放分开，输出保留原始像素。
+  `Ctrl+S` 保存，`Ctrl+C` 复制，`Ctrl+Z` 撤销，`Ctrl+Shift+Z` 重做。
+- 自动滚动长截图，显示实时预览，可停止后保存、复制或转为贴图。
+- MP4 / GIF 录制，MP4 支持系统声音、麦克风及混音；开始前可选择格式和音频源，
+  录制中可保存、复制文件或放弃。MP4 上限 120 分钟，GIF 上限 6 分钟。
+- 扫描二维码、中英文 OCR；OCR 使用专门 fork 的
+  [ImageReader Linux 分支](https://github.com/xiaozhu1337/ImageReader/tree/linux-support)，
+  保留 TinyOCR 和 PP-OCRv6 本地模型，以及 Windows 风格的图像、文字双面板，
+  支持按识别框选择文字、左右面板联动和复制。
+- 设置按 Windows 的侧栏、分页、菜单表格和开关布局实现，包含基础、快捷键、
+  菜单和关于页面。语言、工具栏位置、截图菜单顺序、显隐和各工具样式即时保存。
+  图标和翻译复用项目原有资源。
 
-滚动长截图、GIF/MP4 录屏、自动窗口吸附、马赛克、橡皮擦、标注对象编辑、
-取景放大/拾色、自由缩放和多语言设置尚未移植。
-Linux 界面目前使用中文。这里列出的功能范围与 Windows 版不同。
+截图、OCR、二维码、长截图和录屏入口均来自同一全屏选区流程。
+当前 KDE 上的窗口吸附通过 KWin 脚本取得窗口范围；其他桌面可能无法提供窗口列表。
 
 ## 构建
 
-需要 mise、Git、C++ 编译器、pkg-config，以及本机的 Qt 6 Base、Qt 6 Wayland、
-OpenCV 开发文件、yaml-cpp、KDE Frameworks 6 的 KGlobalAccel 开发文件和 xmake。当前机器已经安装这些系统组件；mise 选用本机
-xmake 以匹配系统 ncurses，并管理 Python 与 ONNX Runtime 的固定版本。
-OpenCV 4 和 5 均可使用。当前下载配方和 OCR 推理运行库仅覆盖 Linux x86_64。
+需要 mise、Git、C++ 编译器、pkg-config，以及 Qt 6 Base / Wayland、OpenCV、
+yaml-cpp、KGlobalAccel、LayerShellQt、PipeWire 开发文件。运行录制还需要 FFmpeg
+和提供 PulseAudio 兼容接口的音频服务，音频源通过 `pactl` 查询。
+当前机器已安装这些系统组件；mise 选用本机 xmake，管理 Python 和 ONNX Runtime。
+OCR 构建配方目前覆盖 Linux x86_64，支持本机的 OpenCV 版本。
 
 在项目根目录执行：
 
@@ -34,11 +47,9 @@ HTTP_PROXY='http://127.0.0.1:7890' HTTPS_PROXY='http://127.0.0.1:7890' mise inst
 mise exec -- python 'Scripts/linux/build.py'
 ```
 
-脚本下载固定提交的 ImageReader fork，再构建 OCR 与截图程序，并执行画布、
-中英文识别、错误输入和导出检查。网络下载使用 `http://127.0.0.1:7890` 代理。
-首次构建需要联网；后续构建复用 `build/deps` 缓存。
-
-完整运行目录是 `build/linux/x86_64/release/`：
+脚本检出固定版本的 ImageReader fork，构建 OCR 和截图程序，并执行下文所列测试。
+外网下载使用 `http://127.0.0.1:7890`；后续构建复用 `build/deps` 缓存。
+完整运行目录为 `build/linux/x86_64/release/`，需一并保留：
 
 ```text
 ScreenCapture
@@ -48,75 +59,50 @@ models/PP-OCRv6_rec_tiny.onnx
 lib/libonnxruntime.so.1
 ```
 
-不要只复制 ScreenCapture。Qt、OpenCV 和 Wayland 平台插件来自系统；
-这不是跨发行版的独立二进制包。
+Qt、OpenCV、PipeWire 和平台插件使用系统版本。这不是跨发行版的独立二进制包。
 
-## 使用与安装
+## 启动和配置
 
 ```sh
 './build/linux/x86_64/release/ScreenCapture'
-'./build/linux/x86_64/release/ScreenCapture' --enter=ocr
 './build/linux/x86_64/release/ScreenCapture' --enter=tray
 './build/linux/x86_64/release/ScreenCapture' --enter=settings
+'./build/linux/x86_64/release/ScreenCapture' --enter=ocr
+'./build/linux/x86_64/release/ScreenCapture' --enter=long
+'./build/linux/x86_64/release/ScreenCapture' --enter=video
 './build/linux/x86_64/release/ScreenCapture' --image '/absolute/path/image.png'
 './build/linux/x86_64/release/ScreenCapture' --output '/absolute/path/screenshot.png'
 ```
 
-正常启动只创建托盘，不发起截图请求，也不会触发截图授权窗口。
-点击托盘“截图”、按全局快捷键或显式使用 `--enter=cap` 后，才会请求桌面门户截图。
-首次授权后直接获取完整桌面图像并进入编辑窗口，随后可在编辑器内框选区域；
-不再每次打开 KDE 的范围、延迟和指针选择窗口。
-取消截图或关闭编辑窗口后托盘仍保留，从托盘菜单选择“退出”才结束常驻进程。
-托盘左键截图，右键打开菜单；KDE 可能把图标收进托盘的隐藏项。
-`--enter=tray` 只进入托盘，`--enter=settings` 直接打开设置。
-“设置 → 通用”的“启动后立即截图”默认关闭；启用后普通启动仍会立即请求截图。
-旧版本保存的 `capture_on_start: true` 可在此关闭，或改为 YAML 中的 `false`。
-`--enter=ocr` 在截图后直接识别文字；也可在编辑窗口框选后点击“文字识别 OCR”，只识别当前选区。
-右键清除选区。没有选区时，保存、复制、OCR 和二维码识别使用整张图片。
-底图像素坐标与窗口缩放分离，导出保持原图像素尺寸。
+支持 `cap`、`pin`、`ocr`、`qr`、`long`、`video`、`tray` 和 `settings` 入口。
+普通重复启动会把操作转发到常驻实例；`--output` 与 `--auto-quit=true` 使用独立进程。
+`--auto-start=true` 以托盘待命模式启动，不发起截图请求。
+复制时程序会维持 Wayland 剪贴板来源，避免关闭窗口后无法粘贴。
 
-常用按键：`Ctrl+N` 新截图、`Ctrl+C` 复制图片、`Ctrl+S` 保存、`Ctrl+O` OCR、
-`Ctrl+Z` 撤销、`Ctrl+Shift+Z` 重做、`F3` 切换置顶、`Esc` 关闭。
-Wayland 下，置顶行为最终取决于窗口管理器。
+设置保存在 `$XDG_CONFIG_HOME/xland/ScreenCapture/config.yaml`，默认位置为
+`~/.config/xland/ScreenCapture/config.yaml`，各字段均附有注释。已有配置会保留；
+配置损坏时不直接覆盖原文件。登录自启写入
+`~/.config/autostart/io.github.xland.ScreenCapture.desktop`。
+默认全局截图快捷键为 `Ctrl+Alt+A`，贴图键为 `F3`；可在快捷键设置中修改。
+全局键使用 KDE 的 KGlobalAccel，其他桌面可通过系统快捷键运行相应入口命令。
 
-`--auto-quit=true` 在成功保存后关闭窗口。它和 `--output` 使用独立的一次性进程，
-不会创建托盘或改写常驻进程的偏好。复制后保留窗口，以继续提供 Wayland
-剪贴板数据；粘贴完成后再关闭。`--enter=pin` 进入同一编辑窗口。
-不支持的入口，例如 `--enter=long`，会返回参数错误。
-
-可安装到用户目录，无需 root：
+安装到用户目录无需 root：
 
 ```sh
 mise exec -- python 'Scripts/linux/build.py' --install '/home/cat/.local'
 ```
 
-安装包含 ScreenCapture、ImageReader、模型、ONNX Runtime 及桌面菜单入口。
-确保安装目录的 `bin` 在桌面会话 PATH 中。截图的默认全局快捷键是 `Ctrl+Alt+A`，
-可在应用的“设置 → 快捷键”中修改、清空或另设全局 OCR 快捷键。全局快捷键当前使用
-KDE 的 KGlobalAccel 服务，其他桌面可通过系统快捷键启动命令。
+安装包括主程序、OCR 程序、模型、ONNX Runtime 和桌面入口。
 
-设置保存于 `$XDG_CONFIG_HOME/xland/ScreenCapture/config.yaml`，默认位置为
-`~/.config/xland/ScreenCapture/config.yaml`，每个字段均有注释。颜色、线宽与最近保存目录
-会自动记住；工具栏位置、工具的启用状态与顺序会立即应用到已打开的编辑窗口。
-配置损坏时保留原文件并使用默认值，只有在设置窗口明确保存才替换。
-登录自启默认关闭，启用后写入
-`~/.config/autostart/io.github.xland.ScreenCapture.desktop`，以托盘待命模式启动。
-若启用后移动了可执行文件，请在新位置重新关闭再开启自启。
+## Wayland 授权
 
-## 截图授权
+截图使用桌面门户的 `interactive=false`，应用身份为
+`io.github.xland.ScreenCapture`。当前 Qt 6.12 和 KDE 门户可以保存首次授权；
+已授权后不会每次弹出 KDE 的范围、延迟和指针选择界面。
+需要安装 `~/.local/share/applications/io.github.xland.ScreenCapture.desktop`，
+使门户能识别应用，而非把终端识别为截图请求方。
 
-程序使用 `interactive=false` 请求截图。当前 KDE 门户可按应用身份保存首次授权，
-允许后后续截图以及重新启动程序均无需再次确认。原来的交互截图窗口每次都会出现，
-其中的允许操作不等于保存非交互截图授权。
-
-先安装上面的桌面入口，确保存在
-`~/.local/share/applications/io.github.xland.ScreenCapture.desktop`。
-本机 Qt 6.12 会用程序已设置的桌面 ID 自动向门户注册，因此从终端启动也按
-`io.github.xland.ScreenCapture` 保存权限。只有仓库中的 `.desktop` 文件还不够；
-未安装桌面入口时，门户可能把程序识别为启动它的 Konsole。
-
-通常首次在系统授权窗口允许即可。已有 `ask` 记录会继续每次询问，`no` 会直接拒绝。
-若希望明确始终允许当前用户的 ScreenCapture，可执行一次：
+当前用户可用以下系统命令明确保存截图许可：
 
 ```sh
 busctl --user call \
@@ -126,27 +112,26 @@ busctl --user call \
   SetPermission sbssas screenshot true screenshot 'io.github.xland.ScreenCapture' 1 yes
 ```
 
-这项系统授权跨进程重启保存，允许该应用无需再次确认读取屏幕。
-程序自身不会写入或扩大系统授权；用户撤销授权后，截图仍会被拒绝。
-上述流程已在本机 `xdg-desktop-portal 1.22.1`、KDE 门户 `6.8.0` 验证，
-其他门户后端和旧版 Qt 的身份注册与授权行为需要分别确认。
+程序自身不写入这项授权；撤销后截图会被拒绝。
+录屏和自动滚动分别使用 ScreenCast、RemoteDesktop 门户和 PipeWire，
+会由桌面请求屏幕共享、指针控制权限。截图许可不等同于这些权限。
 
-## 验证与排错
+## 验证与限制
 
-构建脚本自动检查：原始像素尺寸、透明度、放大/缩小后的选区与裁剪、双击复制、
-单行图片、标注撤销/重做、真实 OCR 插件的中英文识别、无效图片/模型的错误码、
-主程序 PNG 导出，配置保存/恢复/损坏保护、设置窗口、工具栏联动、XDG 自启，
-以及隔离 D-Bus 会话中的门户成功/取消/拒绝与异常响应、一次性输出和单实例转发。
-这些检查使用离屏 Qt，不代替真实桌面门户测试。
+构建脚本检查画布像素、缩放、标注、文字、马赛克、橡皮擦、历史记录，
+托盘菜单、多贴图、选区、设置布局和即时保存、损坏配置保护、快捷键、
+独立 OCR 的中英文识别、双面板选择、命令行和错误处理，
+以及隔离 D-Bus 中的截图成功、取消、拒绝、异常响应和单实例转发。
+媒体测试使用真实 FFmpeg 验证 MP4、GIF 和音频编码，另检查滚动拼接、4K 匹配、
+PipeWire 缓冲校验、背压恢复、录制时长、文件收尾和旧会话错误隔离。
 
-另已在当前原生 Wayland 会话打开并检查编辑窗口，执行画布、OCR 集成与导出检查。
-为 ScreenCapture 保存允许权限后，已使用构建目录和安装目录中的程序各进行一次真实
-非交互截图，两个独立进程均直接导出 2560×1600 PNG，没有再次显示截图选择或授权窗口。
+离屏和模拟流测试不能代替真实共享授权、长页面滚动及音频设备录制。
+当前单屏 KDE Wayland 已通过原生窗口与操作断言检查；最后一次安装版门户截图
+因桌面锁屏返回黑帧，未据此确认实际画面。多屏混合缩放、其他桌面、中文输入法和
+跨应用剪贴板仍需实际环境验证。
+Qt 与 Windows Direct2D 的字体栅格化、系统文件对话框和桌面授权界面由平台决定，
+尚未与运行中的 Windows 程序做逐像素截图比对。
 
-真实桌面还需检查首次授权的拒绝/取消、多个屏幕和混合缩放、中文输入、跨应用粘贴、
-置顶和托盘。截图依赖 `xdg-desktop-portal` 与桌面后端，KDE 对应
-`xdg-desktop-portal-kde`，最终授权行为由桌面控制。
-
-程序把警告和错误异步写入可执行文件旁的 `logs/errors.log`；目录不可写时输出到
-stderr。OCR 临时选区图片放在用户缓存目录的私有临时目录中，在识别结束或关闭
-识别窗口时清理。
+警告和错误异步写入可执行文件旁的 `logs/errors.log`；目录不可写时输出到 stderr。
+OCR 临时图片使用用户缓存目录的私有临时目录；视频复制到剪贴板后保留对应文件，
+以便剪贴板管理器继续访问。

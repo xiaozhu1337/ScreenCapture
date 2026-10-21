@@ -1,9 +1,11 @@
 #pragma once
 #include "CapturePortal.h"
+#include "WindowGeometry.h"
 #include <QMenu>
 #include <QObject>
 #include <QPointer>
 #include <QSystemTrayIcon>
+class CaptureOverlay;
 class Editor;
 class Settings;
 class SettingsDialog;
@@ -23,17 +25,23 @@ public slots:
     Q_SCRIPTABLE void activate(const QString& mode, const QString& imagePath);
 private:
     void capture(const QString& mode);
-    void openImage(QImage image);
+    void captured(QImage image);
+    void dispatch(const QString& id, QImage image, QRect geometry);
+    void openImage(QImage image, QRect geometry = {}, const QString& tool = {});
     void applyShortcuts();
+    void refreshLanguage();
+    void quitIfIdle();
     Settings& settings;
     bool oneShot;
-    QString output;
-    QString captureMode;
+    QString output, captureMode;
     bool pending{false};
     CapturePortal portal;
+    WindowGeometry windowGeometry;
     QMenu menu;
     QSystemTrayIcon tray;
-    QPointer<Editor> editor;
+    QList<QPointer<Editor>> editors;
+    QList<QPointer<QWidget>> recordings;
+    QPointer<CaptureOverlay> overlay;
     QPointer<SettingsDialog> dialog;
     QAction* captureAction;
     QAction* ocrAction;

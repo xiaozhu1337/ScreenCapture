@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QPainter>
 #include <QProcess>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTextEdit>
 #include <QTest>
@@ -43,6 +44,7 @@ int main(int argc, char** argv)
     const QPoint start = area.topLeft() + QPoint(20, 20);
     const QPoint end = area.bottomRight() - QPoint(20, 20);
     QTest::mousePress(&canvas, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(&canvas, end);
     QTest::mouseRelease(&canvas, Qt::LeftButton, Qt::NoModifier, end);
     const auto annotated = canvas.result();
     canvas.undo();
@@ -52,6 +54,7 @@ int main(int argc, char** argv)
     canvas.undo();
     canvas.setTool(Canvas::Tool::Arrow);
     QTest::mousePress(&canvas, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(&canvas, end);
     QTest::mouseRelease(&canvas, Qt::LeftButton, Qt::NoModifier, end);
     const auto arrow = canvas.result();
     canvas.redo();
@@ -89,21 +92,22 @@ int main(int argc, char** argv)
         painter.drawText(35, 85, "Screen Capture 12345");
         painter.drawText(35, 185, QString::fromUtf8("中文文字识别测试"));
     }
-    Editor editor(sample, false);
-    editor.recognize();
-    auto* text = editor.findChild<QTextEdit*>();
-    check(text != nullptr, "OCR must open a result dialog");
-    QElapsedTimer timer;
-    timer.start();
-    while (!text->toPlainText().contains("12345") && timer.elapsed() < 15000) QTest::qWait(20);
-    check(text->toPlainText().contains("12345") && text->toPlainText().contains(QString::fromUtf8("中文")),
-          "Screenshot editor must recognize English and Chinese through ImageReader");
     QDir().mkpath("__tmp");
     QTemporaryDir directory("__tmp/linux-test-XXXXXX");
     check(directory.isValid(), "Cannot create temporary test directory");
     const QString input = directory.filePath("input.png"), output = directory.filePath("output.png");
     check(sample.save(input), "Cannot write test image");
     QProcess process;
+    const QString reader = QStandardPaths::findExecutable("ImageReader");
+    check(!reader.isEmpty(), "The ImageReader fork must be on PATH");
+    process.start(reader, {"--text", "--image-path=" + input});
+    QElapsedTimer timer;
+    timer.start();
+    while (process.state() != QProcess::NotRunning && timer.elapsed() < 20000) QTest::qWait(20);
+    check(process.state() == QProcess::NotRunning && process.exitCode() == 0, "Bundled OCR must recognize a screenshot");
+    const QString recognized = QString::fromUtf8(process.readAllStandardOutput());
+    check(recognized.contains("12345") && recognized.contains(QString::fromUtf8("中文")),
+          "The ImageReader fork must recognize English and Chinese");
     process.start(QDir::currentPath() + "/build/linux/x86_64/release/ScreenCapture", {"--image", input, "--output", output});
     timer.restart();
     while (process.state() != QProcess::NotRunning && timer.elapsed() < 10000) QTest::qWait(20);

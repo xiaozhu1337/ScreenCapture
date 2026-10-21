@@ -1,11 +1,18 @@
-target("ScreenCapture")
+local function linux_application()
     add_rules("qt.widgetapp")
     add_frameworks("QtDBus")
-    add_syslinks("yaml-cpp", "KF6GlobalAccel")
-    add_includedirs("/usr/include/KF6/KGlobalAccel")
-    add_files("*.cpp", "*.h")
+    add_syslinks("yaml-cpp", "KF6GlobalAccel", "LayerShellQtInterface", "pipewire-0.3")
+    add_includedirs(".", "..", "Capture", "Desktop", "Editing", "Settings", "Recording",
+                    "/usr/include/KF6/KGlobalAccel", "/usr/include/pipewire-0.3", "/usr/include/spa-0.2")
+    add_files("Capture/*.cpp", "Capture/*.h", "Desktop/*.cpp", "Desktop/*.h",
+              "Editing/*.cpp", "Editing/*.h", "Settings/*.cpp", "Settings/*.h",
+              "Recording/*.cpp", "Recording/*.h", "resources.qrc")
     add_files("../quirc/*.c", {defines = "QUIRC_MAX_REGIONS=65534"})
-    add_includedirs("..")
+end
+
+target("ScreenCapture")
+    linux_application()
+    add_files("main.cpp")
     add_installfiles("../../Scripts/linux/io.github.xland.ScreenCapture.desktop", {prefixdir = "share/applications"})
     after_install(function (target)
         local built = target:targetdir()
@@ -18,34 +25,19 @@ target("ScreenCapture")
     end)
 target_end()
 
-target("ScreenCaptureTests")
-    set_default(false)
-    add_rules("qt.widgetapp")
-    add_frameworks("QtTest")
-    add_files("Canvas.cpp", "Editor.cpp", "Settings.cpp", "Settings.h", "../../Test/Linux/CanvasTests.cpp")
-    add_syslinks("yaml-cpp")
-    add_files("../quirc/*.c", {defines = "QUIRC_MAX_REGIONS=65534"})
-    add_includedirs(".", "..")
-    set_targetdir("../../build/tests/$(mode)")
-target_end()
-
-target("ScreenCaptureDesktopTests")
-    set_default(false)
-    add_rules("qt.widgetapp")
-    add_frameworks("QtDBus", "QtTest")
-    add_files("Canvas.cpp", "Editor.cpp", "Settings.cpp", "Settings.h", "SettingsDialog.cpp", "SettingsDialog.h")
-    add_files("DesktopApp.cpp", "DesktopApp.h", "CapturePortal.cpp", "CapturePortal.h", "../../Test/Linux/DesktopTests.cpp")
-    add_files("../quirc/*.c", {defines = "QUIRC_MAX_REGIONS=65534"})
-    add_syslinks("yaml-cpp", "KF6GlobalAccel")
-    add_includedirs(".", "..", "/usr/include/KF6/KGlobalAccel")
-    set_targetdir("../../build/tests/$(mode)")
-target_end()
-
-target("ScreenCapturePortalTests")
-    set_default(false)
-    add_rules("qt.widgetapp")
-    add_frameworks("QtDBus", "QtTest")
-    add_files("CapturePortal.cpp", "CapturePortal.h", "../../Test/Linux/PortalTests.cpp")
-    add_includedirs(".")
-    set_targetdir("../../build/tests/$(mode)")
-target_end()
+for name, file in pairs({ScreenCaptureTests = "CanvasTests", ScreenCaptureDesktopTests = "DesktopTests",
+                         ScreenCapturePortalTests = "PortalTests", ScreenCaptureSettingsTests = "SettingsDialogTests",
+                         ScreenCaptureCanvasParityTests = "CanvasParityTests", ScreenCaptureRecordingTests = "RecordingTests",
+                         ScreenCaptureMediaRegressionTests = "MediaRegressionTests"}) do
+    target(name)
+        set_default(false)
+        linux_application()
+        add_frameworks("QtTest")
+        local moc = file == "SettingsDialogTests" or file == "CanvasParityTests" or file == "RecordingTests" or file == "MediaRegressionTests"
+        if file == "MediaRegressionTests" then
+            add_ldflags("-Wl,--wrap=pw_stream_dequeue_buffer", "-Wl,--wrap=pw_stream_queue_buffer", {force = true})
+        end
+        add_files("../../Test/Linux/" .. file .. ".cpp", {rules = moc and "qt.moc" or nil})
+        set_targetdir("../../build/tests/$(mode)")
+    target_end()
+end

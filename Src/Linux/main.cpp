@@ -24,14 +24,20 @@ int main(int argc, char** argv)
     parser.addVersionOption();
     parser.addOption({"image", "打开已有图片进行编辑。", "file"});
     parser.addOption({"output", "直接保存 PNG 到指定路径并退出。", "file"});
-    parser.addOption({"enter", "启动模式：cap、pin、ocr、tray、settings。", "mode", "cap"});
-    parser.addOption({"auto-quit", "保存后退出：true/false；复制后保留窗口以提供 Wayland 剪贴板。", "bool", "false"});
+    parser.addOption({"enter", "启动模式：cap、pin、ocr、qr、long、video、tray、settings。", "mode", "cap"});
+    parser.addOption({"auto-start", "登录时启动并在托盘待命：true/false。", "bool", "false"});
+    parser.addOption({"auto-quit", "完成操作后退出：true/false。", "bool", "false"});
     parser.process(app);
     QString mode = parser.value("enter");
-    if (!QStringList{"cap", "pin", "ocr", "tray", "settings"}.contains(mode)) {
+    if (!QStringList{"cap", "pin", "ocr", "qr", "qrcode", "long", "video", "tray", "settings"}.contains(mode)) {
         fprintf(stderr, "Unsupported Linux entry mode: %s\n", qPrintable(mode));
         return 2;
     }
+    if (parser.value("auto-start") != "true" && parser.value("auto-start") != "false") {
+        fprintf(stderr, "--auto-start must be true or false\n");
+        return 2;
+    }
+    if (parser.value("auto-start") == "true") mode = "tray";
     const QString quit = parser.value("auto-quit");
     if (quit != "true" && quit != "false") { fprintf(stderr, "--auto-quit must be true or false\n"); return 2; }
     const bool oneShot = quit == "true" || parser.isSet("output");

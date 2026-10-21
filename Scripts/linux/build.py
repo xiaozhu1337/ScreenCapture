@@ -8,7 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 OCR = ROOT / "build/deps/ImageReader"
-REVISION = "fc650de1ef0c9d5bedebcc845d7bf82709f6ba45"
+REVISION = "f755df2e501754c1679f6cac75c48bf8e287c463"
 PROXY = "http://127.0.0.1:7890"
 ENV = {**os.environ, "HTTP_PROXY": PROXY, "HTTPS_PROXY": PROXY}
 
@@ -30,7 +30,7 @@ def main():
     run("mise", "trust", str(OCR / "mise.toml"), cwd=OCR)
     run("mise", "install", cwd=OCR)
     run("mise", "exec", "--", "xmake", "f", "-P", str(OCR), "-p", "linux", "-a", "x86_64", "-m", "release", "-y", cwd=OCR)
-    run("mise", "exec", "--", "xmake", "-P", str(OCR), cwd=OCR)
+    run("mise", "exec", "--", "xmake", "build", "-P", str(OCR), "ImageReader", "LinuxGuiTests", cwd=OCR)
     run("mise", "exec", "--", "python", "Scripts/test_linux.py", cwd=OCR)
     run("mise", "exec", "--", "xmake", "f", "-p", "linux", "-a", "x86_64", "-m", "release", "-y")
     run("mise", "exec", "--", "xmake")
@@ -43,10 +43,10 @@ def main():
     tests = {**ENV, "QT_QPA_PLATFORM": "offscreen", "QT_FORCE_STDERR_LOGGING": "1",
              "PATH": str(output) + os.pathsep + os.environ.get("PATH", "")}
     run(str(ROOT / "build/tests/release/ScreenCaptureTests"), env=tests)
-    run("mise", "exec", "--", "xmake", "build", "ScreenCaptureDesktopTests")
-    run("dbus-run-session", "--", str(ROOT / "build/tests/release/ScreenCaptureDesktopTests"), env=tests)
-    run("mise", "exec", "--", "xmake", "build", "ScreenCapturePortalTests")
-    run("dbus-run-session", "--", str(ROOT / "build/tests/release/ScreenCapturePortalTests"), env=tests)
+    for target in ("ScreenCaptureDesktopTests", "ScreenCaptureSettingsTests", "ScreenCapturePortalTests",
+                   "ScreenCaptureCanvasParityTests", "ScreenCaptureRecordingTests", "ScreenCaptureMediaRegressionTests"):
+        run("mise", "exec", "--", "xmake", "build", target)
+        run("dbus-run-session", "--", str(ROOT / "build/tests/release" / target), env=tests)
     if args.install:
         run("mise", "exec", "--", "xmake", "install", "-o", str(args.install.resolve()), "ScreenCapture")
     print(f"Ready: {output / 'ScreenCapture'}")

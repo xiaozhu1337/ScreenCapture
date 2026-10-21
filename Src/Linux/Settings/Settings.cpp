@@ -1,4 +1,5 @@
 #include "Settings.h"
+#include "Ui.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -28,9 +29,22 @@ QKeySequence readKey(const YAML::Node& node, const char* name, const QKeySequenc
 }
 }
 
+Preferences::Preferences()
+{
+    for (const auto& id : Ui::drawingTools()) {
+        ToolStyle style;
+        style.size = Ui::toolSize(id).initial;
+        style.fill = id == "arrow" || id == "number";
+        toolPin.insert(id, style);
+    }
+}
+
 Settings::Settings(QString directory, QObject* parent) : QObject(parent)
 {
-    if (directory.isEmpty()) directory = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (directory.isEmpty()) {
+        directory = QFile::exists(QCoreApplication::applicationDirPath() + "/config.yaml")
+            ? QCoreApplication::applicationDirPath() : QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    }
     filePath = QDir(directory).filePath("config.yaml");
     values.saveDirectory = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
     load();
@@ -82,14 +96,33 @@ bool Settings::load()
         loaded.captureKey = readKey(root, "capture_shortcut", loaded.captureKey);
         loaded.ocrKey = readKey(root, "ocr_shortcut", loaded.ocrKey);
         loaded.pinKey = readKey(root, "pin_shortcut", loaded.pinKey);
-        if (root["tools"]) {
-            if (!root["tools"].IsSequence()) throw std::runtime_error("Expected a tools list");
-            loaded.tools.clear();
-            const QStringList supported = Preferences{}.tools;
-            for (const auto& value : root["tools"]) {
+        if (root["language"]) loaded.language = QString::fromStdString(root["language"].as<std::string>());
+        if (!Ui::languages().contains(loaded.language)) throw std::runtime_error("Unsupported language");
+        if (root["restore_token"]) loaded.restoreToken = QString::fromStdString(root["restore_token"].as<std::string>());
+        if (root["capture_toolbar"]) {
+            if (!root["capture_toolbar"].IsSequence()) throw std::runtime_error("Expected a capture toolbar list");
+            loaded.captureToolbar.clear();
+            for (const auto& value : root["capture_toolbar"]) {
                 const QString tool = QString::fromStdString(value.as<std::string>());
-                if (!supported.contains(tool) || loaded.tools.contains(tool)) throw std::runtime_error("Invalid or duplicate tool");
-                loaded.tools.append(tool);
+                if (!Ui::captureTools().contains(tool) || loaded.captureToolbar.contains(tool))
+                    throw std::runtime_error("Invalid or duplicate capture tool");
+                loaded.captureToolbar.append(tool);
+            }
+        }
+        if (root["tool_pin"]) {
+            if (!root["tool_pin"].IsMap()) throw std::runtime_error("Expected tool styles mapping");
+            for (auto it = loaded.toolPin.begin(); it != loaded.toolPin.end(); ++it) {
+                const auto node = root["tool_pin"][it.key().toStdString()];
+                if (!node) continue;
+                const auto range = Ui::toolSize(it.key());
+                it->size = qBound(range.minimum, node["size"].as<int>(it->size), range.maximum);
+                it->color = QColor(QString::fromStdString(node["color"].as<std::string>(it->color.name().toStdString())));
+                if (!it->color.isValid()) throw std::runtime_error("Invalid tool color");
+                it->fill = node["fill"].as<bool>(it->fill);
+                it->transparent = node["semi_transparent"].as<bool>(it->transparent);
+                it->bold = node["bold"].as<bool>(it->bold);
+                it->italic = node["italic"].as<bool>(it->italic);
+                it->rectangle = node["rectangle"].as<bool>(it->rectangle);
             }
         }
         const QString problem = validate(loaded);
@@ -127,10 +160,28 @@ bool Settings::save(bool replaceInvalid)
          << YAML::Key << "ocr_shortcut" << YAML::Value << portable(values.ocrKey).toStdString()
          << YAML::Comment("Pin/unpin shortcut inside the editor; an empty value disables it.")
          << YAML::Key << "pin_shortcut" << YAML::Value << portable(values.pinKey).toStdString()
-         << YAML::Comment("Enabled annotation tools, in toolbar order; selection is always available.")
-         << YAML::Key << "tools" << YAML::Value << YAML::BeginSeq;
-    for (const auto& tool : values.tools) yaml << tool.toStdString();
-    yaml << YAML::EndSeq << YAML::EndMap;
+         << YAML::Comment("Ordered first-level capture actions, using the same IDs as the Windows toolbar.")
+         << YAML::Key << "capture_toolbar" << YAML::Value << YAML::BeginSeq;
+    for (const auto& tool : values.captureToolbar) yaml << tool.toStdString();
+    yaml << YAML::EndSeq
+         << YAML::Comment("Interface language; catalogs are shared with the Windows version.")
+         << YAML::Key << "language" << YAML::Value << values.language.toStdString()
+         << YAML::Comment("Portal restoration token for the last approved recording session.")
+         << YAML::Key << "restore_token" << YAML::Value << values.restoreToken.toStdString()
+         << YAML::Comment("Per-tool style: size, RGB color, fill, transparency, font flags, and rectangular brush mode.")
+         << YAML::Key << "tool_pin" << YAML::Value << YAML::BeginMap;
+    for (auto it = values.toolPin.cbegin(); it != values.toolPin.cend(); ++it) {
+        const auto& style = it.value();
+        yaml << YAML::Key << it.key().toStdString() << YAML::Value << YAML::BeginMap
+             << YAML::Key << "size" << YAML::Value << style.size
+             << YAML::Key << "color" << YAML::Value << style.color.name().toStdString()
+             << YAML::Key << "fill" << YAML::Value << style.fill
+             << YAML::Key << "semi_transparent" << YAML::Value << style.transparent
+             << YAML::Key << "bold" << YAML::Value << style.bold
+             << YAML::Key << "italic" << YAML::Value << style.italic
+             << YAML::Key << "rectangle" << YAML::Value << style.rectangle << YAML::EndMap;
+    }
+    yaml << YAML::EndMap << YAML::EndMap;
     const QByteArray contents = QByteArray(yaml.c_str()) + '\n';
     QDir().mkpath(QFileInfo(filePath).absolutePath());
     QSaveFile file(filePath);

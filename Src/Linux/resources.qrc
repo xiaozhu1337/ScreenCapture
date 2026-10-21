@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="iconfont.ttf">../Res/iconfont.ttf</file>
+    <file alias="logo.png">../../Doc/logo.png</file>
+    <file alias="languages/zh-CN.json">../../Lang/简体中文.zh-CN.json</file>
+    <file alias="languages/zh-TW.json">../../Lang/繁體中文.zh-TW.json</file>
+    <file alias="languages/en-US.json">../../Lang/English.en-US.json</file>
+    <file alias="languages/ja-JP.json">../../Lang/日本語.ja-JP.json</file>
+    <file alias="languages/ru-RU.json">../../Lang/Русский.ru-RU.json</file>
+    <file alias="languages/id-ID.json">../../Lang/Bahasa Indonesia.id-ID.json</file>
+  </qresource>
+</RCC>
