@@ -103,7 +103,7 @@ int main(int argc, char** argv)
     check(QDir().mkpath(configDirectory), "Cannot create isolated app configuration");
     QFile config(configDirectory + "/config.yaml");
     check(config.open(QIODevice::WriteOnly), "Cannot create startup preference fixture");
-    config.write("capture_on_start: false\ncapture_shortcut: ''\nocr_shortcut: ''\n");
+    config.write("capture_shortcut: ''\nocr_shortcut: ''\n");
     config.close();
     auto environment = QProcessEnvironment::systemEnvironment();
     environment.insert("XDG_CONFIG_HOME", configHome);
@@ -124,7 +124,8 @@ int main(int argc, char** argv)
     check(output.exitCode() == 0 && QImage(exported) == sample, "One-shot output must capture original image despite startup preference");
     QProcess resident;
     resident.setProcessEnvironment(environment);
-    resident.start(executable, {"--enter=settings"});
+    const int idleRequests = mock.requests;
+    resident.start(executable, {});
     check(waitFor([&] { return bus.interface()->isServiceRegistered("io.github.xland.ScreenCapture").value(); }), "Resident app must register a single-instance service");
     const int before = mock.requests;
     QProcess second;
@@ -133,12 +134,19 @@ int main(int argc, char** argv)
     check(waitFor([&] { return second.state() == QProcess::NotRunning; }) && second.exitCode() == 0,
         "Repeated launch must forward and exit");
     QTest::qWait(400);
-    check(mock.requests == before, "Repeated launch must honor disabled startup capture");
+    check(mock.requests == idleRequests, "First and repeated ordinary startup must not request a screenshot by default");
     second.start(executable, {"--enter=cap"});
     check(waitFor([&] { return second.state() == QProcess::NotRunning && mock.requests == before + 1; }),
         "Explicit capture must reach the resident instance through D-Bus");
     resident.terminate();
     check(waitFor([&] { return resident.state() == QProcess::NotRunning; }), "Cannot stop resident fixture");
+    check(config.open(QIODevice::WriteOnly | QIODevice::Append), "Cannot enable startup capture fixture");
+    config.write("capture_on_start: true\n");
+    config.close();
+    resident.start(executable, {});
+    check(waitFor([&] { return mock.requests == before + 2; }), "Explicitly enabled startup capture must still request a screenshot");
+    resident.terminate();
+    check(waitFor([&] { return resident.state() == QProcess::NotRunning; }), "Cannot stop opt-in startup fixture");
     qInfo("One-shot output, startup preference and single-instance forwarding checks passed");
     return 0;
 }

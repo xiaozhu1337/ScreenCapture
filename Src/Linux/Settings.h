@@ -6,7 +6,7 @@
 
 struct Preferences
 {
-    bool startCapture{true};
+    bool startCapture{false};
     bool toolbarBottom{false};
     QColor color{Qt::red};
     int lineWidth{3};

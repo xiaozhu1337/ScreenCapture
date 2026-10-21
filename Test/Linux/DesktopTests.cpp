@@ -31,19 +31,20 @@ int main(int argc, char** argv)
     check(temporary.isValid(), "Cannot prepare settings tests");
     qputenv("XDG_CONFIG_HOME", temporary.path().toUtf8());
     Settings settings(temporary.filePath("application"));
+    check(!settings.values.startCapture, "Ordinary startup must stay idle until capture is requested");
     check(settings.values.captureKey == QKeySequence("Ctrl+Alt+A") && settings.values.pinKey == QKeySequence("F3"), "Default shortcuts changed");
     settings.values.captureKey = {};
     settings.values.color = QColor("#123456");
     settings.values.lineWidth = 9;
     settings.values.toolbarBottom = true;
-    settings.values.startCapture = false;
+    settings.values.startCapture = true;
     settings.values.tools = {"text", "pen"};
     settings.values.saveDirectory = temporary.filePath("图片目录");
     check(settings.save(), "Cannot save settings");
     Settings restored(temporary.filePath("application"));
     check(restored.error.isEmpty() && restored.values.color == QColor("#123456") && restored.values.lineWidth == 9,
           "Annotation preferences must survive restart");
-    check(!restored.values.startCapture && restored.values.toolbarBottom && restored.values.tools == QStringList{"text", "pen"}
+    check(restored.values.startCapture && restored.values.toolbarBottom && restored.values.tools == QStringList{"text", "pen"}
           && restored.values.saveDirectory == settings.values.saveDirectory && restored.values.captureKey.isEmpty(),
           "Toolbar, startup, save directory and cleared shortcuts must survive restart");
     QImage image(120, 80, QImage::Format_RGB32);
