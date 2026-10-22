@@ -15,7 +15,7 @@ void Canvas::mousePressEvent(QMouseEvent* event)
         else { selection = {}; update(); }
         return;
     }
-    if (event->button() != Qt::LeftButton || !imageRect().contains(event->position().toPoint())) return;
+    if (event->button() != Qt::LeftButton || !imageRect().contains(event->position())) return;
     const auto point = imagePoint(event->position());
     if (textEditor) {
         const int textHandle = handleAt(strokes[textIndex], point);

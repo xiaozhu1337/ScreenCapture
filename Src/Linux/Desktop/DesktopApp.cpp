@@ -122,7 +122,7 @@ void DesktopApp::captured(QImage image)
     connect(overlay, &QObject::destroyed, this, &DesktopApp::quitIfIdle);
     overlay->showCapture();
 }
-void DesktopApp::openImage(QImage image, QRect geometry, const QString& tool)
+void DesktopApp::openImage(QImage image, QRectF geometry, const QString& tool)
 {
     if (!output.isEmpty()) {
         QSaveFile file(output);

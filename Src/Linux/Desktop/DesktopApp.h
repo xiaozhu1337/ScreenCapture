@@ -26,8 +26,8 @@ public slots:
 private:
     void capture(const QString& mode);
     void captured(QImage image);
-    void dispatch(const QString& id, QImage image, QRect geometry);
-    void openImage(QImage image, QRect geometry = {}, const QString& tool = {});
+    void dispatch(const QString& id, QImage image, QRectF geometry);
+    void openImage(QImage image, QRectF geometry = {}, const QString& tool = {});
     void applyShortcuts();
     void refreshLanguage();
     void quitIfIdle();

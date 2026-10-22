@@ -40,7 +40,7 @@ int main(int argc, char** argv)
     canvas.crop();
     check(canvas.result().size() == QSize(101, 51), "Crop must retain selected pixel dimensions");
     canvas.setTool(Canvas::Tool::Rectangle);
-    const auto area = canvas.imageRect();
+    const auto area = canvas.imageRect().toRect();
     const QPoint start = area.topLeft() + QPoint(20, 20);
     const QPoint end = area.bottomRight() - QPoint(20, 20);
     QTest::mousePress(&canvas, Qt::LeftButton, Qt::NoModifier, start);
@@ -71,7 +71,7 @@ int main(int argc, char** argv)
     scaled.resize(1100, 700);
     scaled.show();
     app.processEvents();
-    const auto scaledArea = scaled.imageRect();
+    const auto scaledArea = scaled.imageRect().toRect();
     for (const bool reversed : {false, true}) {
         const auto start = reversed ? scaledArea.bottomRight() : scaledArea.topLeft();
         const auto end = reversed ? scaledArea.topLeft() : scaledArea.bottomRight();

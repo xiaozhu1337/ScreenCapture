@@ -13,7 +13,7 @@ public:
     void recognize();
     void decodeQr();
     void selectTool(const QString& id);
-    void place(QRect geometry);
+    void place(QRectF geometry);
     Canvas* drawingCanvas() const { return canvas; }
     QRect imageGeometry() const { return placement; }
     std::function<void()> newCapture;
@@ -39,5 +39,6 @@ private:
     QSlider* slider{nullptr};
     QString selected;
     QRect placement;
+    QRectF imagePlacement;
     bool autoQuit, toolsVisible{true}, placing{false};
 };

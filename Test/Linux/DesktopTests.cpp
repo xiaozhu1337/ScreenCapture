@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QEnterEvent>
 #include <QFile>
+#include <QPainter>
 #include <QProcess>
 #include <QRandomGenerator>
 #include <QScreen>
@@ -20,6 +21,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QToolButton>
+#include <QWheelEvent>
 
 static void check(bool value, const char* message) { if (!value) qFatal("%s", message); }
 static void destroyClosed() { QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete); }
@@ -82,6 +84,66 @@ int main(int argc, char** argv)
     check(coldCapture->selectedPixels().isValid(), "The first surface enter must initialize window snapping at the actual pointer");
     coldCapture->close();
     destroyClosed();
+    QImage pinSource(277, 139, QImage::Format_RGB32);
+    for (int y = 0; y < pinSource.height(); ++y)
+        for (int x = 0; x < pinSource.width(); ++x)
+            pinSource.setPixelColor(x, y, QColor(x % 2 ? 30 : 220, y % 2 ? 40 : 210, 90));
+    QPointer<Editor> fractionalPin = new Editor(pinSource, false, &restored);
+    const QRectF pinGeometry(QPointF(83.25, 62.25), QSizeF(pinSource.size()) / 1.35);
+    fractionalPin->place(pinGeometry);
+    fractionalPin->show();
+    check(QTest::qWaitFor([&] { return fractionalPin->drawingCanvas()->size() == fractionalPin->imageGeometry().size(); }),
+          "The configured pin and canvas must match the enclosing window size");
+    auto* pinCanvas = fractionalPin->drawingCanvas();
+    const auto pinArea = pinCanvas->imageRect();
+    check(qFuzzyCompare(pinArea.width() / pinSource.width(), pinArea.height() / pinSource.height()),
+          "Pinning a fractionally scaled crop must use the same horizontal and vertical scale");
+    check(QLineF(QPointF(fractionalPin->imageGeometry().topLeft()) + pinArea.topLeft(), pinGeometry.topLeft()).length() < 1e-9
+              && qAbs(pinArea.width() - pinGeometry.width()) < 1e-9 && qAbs(pinArea.height() - pinGeometry.height()) < 1e-9,
+          "Pinning must preserve the fractional position and size of the selected source pixels");
+    QImage pinRaster(pinSource.size(), QImage::Format_RGB32);
+    pinRaster.setDevicePixelRatio(1.35);
+    pinRaster.fill(Qt::black);
+    {
+        QPainter painter(&pinRaster);
+        painter.translate(-pinArea.topLeft());
+        pinCanvas->render(&painter);
+    }
+    const QRect interior(8, 8, pinSource.width() - 16, pinSource.height() - 16);
+    check(pinRaster.copy(interior) == pinSource.copy(interior),
+          "Fractional pin rendering must preserve one-pixel details without stretching or repeating rows or columns");
+    const QPointF anchor = QPointF(fractionalPin->imageGeometry().topLeft()) + QPointF(70, 40);
+    for (int delta : {120, -120}) {
+        QWheelEvent wheel(anchor - fractionalPin->imageGeometry().topLeft(), anchor, {}, QPoint(0, delta), Qt::NoButton,
+                          Qt::NoModifier, Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(pinCanvas, &wheel);
+        app.processEvents();
+        const auto area = pinCanvas->imageRect();
+        check(qFuzzyCompare(area.width() / pinSource.width(), area.height() / pinSource.height()),
+              "Pinned zoom must preserve the source aspect ratio");
+    }
+    const auto returnedArea = pinCanvas->imageRect();
+    check(QLineF(QPointF(fractionalPin->imageGeometry().topLeft()) + returnedArea.topLeft(), pinGeometry.topLeft()).length() < 1e-9
+              && qAbs(returnedArea.width() - pinArea.width()) < 1e-9 && qAbs(returnedArea.height() - pinArea.height()) < 1e-9,
+          "Zooming a pin in and out must restore its exact scale and position");
+    pinCanvas->moved(QPoint(7, -9));
+    check(QLineF(QPointF(fractionalPin->imageGeometry().topLeft()) + pinCanvas->imageRect().topLeft(),
+                 pinGeometry.topLeft() + QPoint(7, -9)).length() < 1e-9
+              && pinCanvas->result().convertToFormat(pinSource.format()) == pinSource,
+          "Moving a pin must preserve its fractional placement and all exported pixels");
+    fractionalPin->resize(101, 61);
+    check(QTest::qWaitFor([&] { return pinCanvas->size() == fractionalPin->size(); }),
+          "A resized native pin must configure its canvas dimensions");
+    const auto resizedArea = pinCanvas->imageRect();
+    check(QRectF(pinCanvas->rect()).contains(resizedArea)
+              && qFuzzyCompare(resizedArea.width() / pinSource.width(), resizedArea.height() / pinSource.height()),
+          "Resizing outside place must keep the complete image visible at a uniform scale");
+    const QSize resized = fractionalPin->size();
+    pinCanvas->moved(QPoint(4, 3));
+    app.processEvents();
+    check(fractionalPin->size() == resized, "Moving a resized pin must not restore its previous dimensions");
+    fractionalPin->close();
+    destroyClosed();
     QPointer<Editor> editor = new Editor(image, false, &restored);
     editor->show();
     app.processEvents();
@@ -140,7 +202,7 @@ int main(int argc, char** argv)
         const QPoint point = panel->window()->property("captureOrigin").toPoint() + panelOrigin + QPoint(3, 3) - desktop.topLeft();
         const QPoint pixel(qRound(point.x() * screenshot.width() / double(desktop.width())),
                            qRound(point.y() * screenshot.height() / double(desktop.height())));
-        const QPoint selected = capture->selectedGeometry().center() - desktop.topLeft();
+        const QPoint selected = (capture->selectedGeometry().center() - desktop.topLeft()).toPoint();
         const QPoint reference(qRound(selected.x() * screenshot.width() / double(desktop.width())),
                                qRound(selected.y() * screenshot.height() / double(desktop.height())));
         // Compare against the white selection so desktop-wide dimming does not affect this stacking check.
@@ -160,9 +222,11 @@ int main(int argc, char** argv)
     QTest::mouseMove(capture, QPoint(220, 140));
     QTest::mouseRelease(capture, Qt::LeftButton, Qt::NoModifier, QPoint(220, 140));
     QSignalSpy pins(capture, &CaptureOverlay::actionRequested);
+    const QRectF sourceGeometry = capture->selectedGeometry();
     QTest::keyClick(capture, Qt::Key_F3);
     check(pins.size() == 1 && pins[0][0].toString() == "pin", "F3 must pin the current selection");
     check(pins[0][1].value<QImage>() == image.copy(pixels), "Pinning must preserve the exact selected source pixels");
+    check(pins[0][2].value<QRectF>() == sourceGeometry, "Pin actions must preserve fractional selection bounds");
     destroyClosed();
     if (qEnvironmentVariableIsSet("SCREENCAPTURE_NATIVE_UI_TEST")) {
         for (bool oneShot : {false, true}) {
@@ -236,7 +300,7 @@ int main(int argc, char** argv)
             QTest::mousePress(selection, Qt::LeftButton, Qt::NoModifier, QPoint(50, 50));
             QTest::mouseMove(selection, QPoint(220, 140));
             QTest::mouseRelease(selection, Qt::LeftButton, Qt::NoModifier, QPoint(220, 140));
-            const QRect geometry = selection->selectedGeometry();
+            const QRectF geometry = selection->selectedGeometry();
             const QSize pixels = selection->selectedPixels().size();
             auto* line = selection->findChild<QToolButton*>("line");
             check(line && line->isVisible(), "The line action must be available after selecting a region");
@@ -247,8 +311,14 @@ int main(int argc, char** argv)
             for (auto* window : app.topLevelWidgets())
                 if (auto* candidate = dynamic_cast<Editor*>(window); candidate && candidate->isVisible()
                     && candidate->drawingCanvas()->selectedTool() == Canvas::Tool::Pen) pin = candidate;
-            check(pin && pin->imageGeometry() == geometry && pin->drawingCanvas()->imageSize() == pixels,
+            check(pin && pin->imageGeometry() == geometry.toAlignedRect() && pin->drawingCanvas()->imageSize() == pixels,
                   "Selecting line must open a pin at the selected region with the line tool active");
+            check(QTest::qWaitFor([&] { return pin->size() == pin->imageGeometry().size()
+                                               && pin->drawingCanvas()->size() == pin->size(); }),
+                  "A native pin must receive the actual selected window and canvas dimensions");
+            const auto area = pin->drawingCanvas()->imageRect();
+            check(qFuzzyCompare(area.width() / pixels.width(), area.height() / pixels.height()),
+                  "Native selection-to-pin must preserve the source aspect ratio");
             checkUtilitySurfaces(pin);
             QTest::qWait(60);
             QDBusInterface effects("org.kde.KWin", "/Effects", "org.kde.kwin.Effects");

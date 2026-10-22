@@ -13,7 +13,7 @@ public:
     enum class Tool { Select, Pen, Rectangle, Ellipse, Arrow, Number, Text, Mosaic, Eraser };
     explicit Canvas(QImage image, QWidget* parent = nullptr);
     QImage result() const;
-    QRect imageRect() const;
+    QRectF imageRect() const;
     QSize imageSize() const { return image.size(); }
     void crop();
     void undo();
@@ -21,6 +21,7 @@ public:
     void setTool(Tool value);
     Tool selectedTool() const { return tool; }
     void setPinned(bool value) { pinned = value; setMinimumSize(1, 1); }
+    void setPinnedArea(QRectF area);
     void setStyle(const ToolStyle& value);
     ToolStyle style() const { return activeStyle; }
     void finishText();
@@ -83,6 +84,7 @@ private:
     QImage image;
     QList<Stroke> strokes;
     QRect selection;
+    QRectF pinnedArea;
     QPointF origin, mouseOrigin, lastGlobal, lastPoint, anchor;
     Stroke current{};
     ToolStyle activeStyle;

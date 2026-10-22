@@ -8,6 +8,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QResizeEvent>
 #include <QScreen>
 #include <QSlider>
 #include <QToolButton>
@@ -60,7 +61,7 @@ Editor::Editor(QImage image, bool quit, Settings* preferences, QWidget* parent)
         else { toolsVisible = !toolsVisible; layoutTools(); }
     };
     canvas->clicked = [this] { toolsVisible = true; layoutTools(); };
-    canvas->moved = [this](QPoint delta) { tools->hide(); styles->hide(); place(placement.translated(delta)); };
+    canvas->moved = [this](QPoint delta) { tools->hide(); styles->hide(); place(imagePlacement.translated(delta)); };
     canvas->zoomed = [this](int steps, QPoint anchor) { zoom(steps, anchor); };
     canvas->sizeChanged = [this](const QString& id, int size) {
         if (settings) { settings->values.toolPin[id].size = size; settings->save(); }
@@ -95,13 +96,15 @@ void Editor::selectTool(const QString& id)
     rebuildStyles();
     layoutTools();
 }
-void Editor::place(QRect geometry)
+void Editor::place(QRectF geometry)
 {
-    placement = geometry;
+    imagePlacement = geometry;
+    placement = geometry.toAlignedRect();
     placing = true;
-    Ui::positionWindow(this, geometry);
+    Ui::positionWindow(this, placement);
     placing = false;
-    auto* screen = QGuiApplication::screenAt(geometry.center());
+    canvas->setPinnedArea(QRectF(geometry.topLeft() - placement.topLeft(), geometry.size()));
+    auto* screen = QGuiApplication::screenAt(placement.center());
     canvas->pixelRatio = screen ? screen->devicePixelRatio() : 1;
     canvas->setStyle(canvas->style());
     layoutTools();
@@ -133,12 +136,12 @@ void Editor::layoutTools()
 void Editor::zoom(int steps, QPoint anchor)
 {
     canvas->finishText();
-    const double current = placement.width() / double(canvas->imageSize().width());
+    const auto area = canvas->imageRect();
+    const double current = area.width() / canvas->imageSize().width();
     const double maximum = qMax(1., qMin(8., 16000. / qMax(canvas->imageSize().width(), canvas->imageSize().height())));
     const double next = qBound(.1, current * std::pow(1.1, steps), maximum);
-    const QSize size(qMax(1, qRound(canvas->imageSize().width() * next)), qMax(1, qRound(canvas->imageSize().height() * next)));
-    const QPoint offset(qRound(anchor.x() * (1 - next / current)), qRound(anchor.y() * (1 - next / current)));
-    place(QRect(placement.topLeft() + offset, size));
+    const QPointF origin = QPointF(placement.topLeft()) + anchor - (QPointF(anchor) - area.topLeft()) * (next / current);
+    place(QRectF(origin, QSizeF(canvas->imageSize()) * next));
     canvas->setTool(canvas->selectedTool());
 }
 void Editor::keyPressEvent(QKeyEvent* event)
@@ -157,11 +160,24 @@ void Editor::keyPressEvent(QKeyEvent* event)
 }
 void Editor::showEvent(QShowEvent* event) { QMainWindow::showEvent(event); layoutTools(); canvas->setFocus(); }
 void Editor::hideEvent(QHideEvent* event) { tools->hide(); styles->hide(); QMainWindow::hideEvent(event); }
-void Editor::resizeEvent(QResizeEvent* event) { QMainWindow::resizeEvent(event); if (!placing) layoutTools(); }
+void Editor::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    if (placing) return;
+    if (event->size() != placement.size()) {
+        const auto inset = canvas->imageRect().topLeft();
+        place(QRectF(QPointF(placement.topLeft()) + inset,
+                     QSizeF(event->size()) - QSizeF(inset.x(), inset.y())));
+    } else layoutTools();
+}
 void Editor::moveEvent(QMoveEvent* event)
 {
     QMainWindow::moveEvent(event);
-    if (!placing && QGuiApplication::platformName() != "wayland") { placement.moveTopLeft(pos()); layoutTools(); }
+    if (!placing && QGuiApplication::platformName() != "wayland") {
+        imagePlacement.translate(pos() - placement.topLeft());
+        placement.moveTopLeft(pos());
+        layoutTools();
+    }
 }
 void Editor::closeEvent(QCloseEvent* event)
 {

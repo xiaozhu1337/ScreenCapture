@@ -12,13 +12,24 @@ Canvas::Canvas(QImage value, QWidget* parent) : QWidget(parent), image(std::move
     setFocusPolicy(Qt::StrongFocus);
     setTool(Tool::Select);
 }
-QRect Canvas::imageRect() const
+QRectF Canvas::imageRect() const
 {
-    if (pinned) return rect();
+    if (pinned) {
+        const QRectF area = pinnedArea.isValid() ? pinnedArea : QRectF(rect());
+        const qreal scale = qMin(area.width() / image.width(), area.height() / image.height());
+        return QRectF(area.topLeft(), QSizeF(image.size()) * scale);
+    }
     QSize size = image.size();
     size.scale(this->size(), Qt::KeepAspectRatio);
     size = size.expandedTo(QSize(1, 1));
     return QRect(QPoint((width() - size.width()) / 2, (height() - size.height()) / 2), size);
+}
+void Canvas::setPinnedArea(QRectF area)
+{
+    pinnedArea = area;
+    layoutText();
+    updateCursor();
+    update();
 }
 QPointF Canvas::imagePoint(QPointF point) const
 {

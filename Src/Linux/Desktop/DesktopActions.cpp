@@ -8,7 +8,7 @@
 #include <QTimer>
 #include <algorithm>
 
-void DesktopApp::dispatch(const QString& id, QImage image, QRect geometry)
+void DesktopApp::dispatch(const QString& id, QImage image, QRectF geometry)
 {
     if (id == "ocr") {
         const bool started = ImageActions::recognize(image);
@@ -20,12 +20,12 @@ void DesktopApp::dispatch(const QString& id, QImage image, QRect geometry)
     } else if (id == "long" || id == "video") {
         QWidget* session;
         if (id == "long") {
-            auto* scrolling = new LongCapture(std::move(image), geometry, settings, oneShot || !tray.isVisible());
+            auto* scrolling = new LongCapture(std::move(image), geometry.toAlignedRect(), settings, oneShot || !tray.isVisible());
             connect(scrolling, &LongCapture::pinRequested, this, [this](QImage result, QRect region) {
                 openImage(std::move(result), region);
             });
             session = scrolling;
-        } else session = new VideoCapture(geometry, settings, oneShot || !tray.isVisible());
+        } else session = new VideoCapture(geometry.toAlignedRect(), settings, oneShot || !tray.isVisible());
         recordings.append(session);
         connect(session, &QObject::destroyed, this, [this] {
             recordings.removeIf([](const auto& item) { return item.isNull(); });

@@ -78,10 +78,10 @@ QRect CaptureOverlay::selectedPixels() const
     const int bottom = qBound(top, int(std::ceil(area.bottom())), image.height());
     return QRect(left, top, right - left, bottom - top);
 }
-QRect CaptureOverlay::selectedGeometry() const
+QRectF CaptureOverlay::selectedGeometry() const
 {
     const auto pixels = selectedPixels();
-    return QRectF(globalPoint(pixels.topLeft()), globalPoint(pixels.topLeft() + QPoint(pixels.width(), pixels.height()))).toAlignedRect();
+    return QRectF(globalPoint(pixels.topLeft()), globalPoint(pixels.topLeft() + QPoint(pixels.width(), pixels.height())));
 }
 void CaptureOverlay::highlight()
 {
@@ -122,7 +122,7 @@ void CaptureOverlay::buildTools()
 void CaptureOverlay::layoutTools()
 {
     if (!adjusted || pressed || !selection.valid()) { tools->hide(); return; }
-    const QRect region = selectedGeometry();
+    const QRect region = selectedGeometry().toAlignedRect();
     auto* screen = QGuiApplication::screenAt(region.center());
     if (!screen) screen = QGuiApplication::primaryScreen();
     const auto work = screen->availableGeometry();

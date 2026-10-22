@@ -13,10 +13,10 @@ class CaptureOverlay : public QWidget
 public:
     CaptureOverlay(QImage image, Settings& settings, QString entry, bool autoQuit, const QList<QRect>& windows = {});
     QRect selectedPixels() const;
-    QRect selectedGeometry() const;
+    QRectF selectedGeometry() const;
     void showCapture();
 signals:
-    void actionRequested(QString id, QImage image, QRect geometry);
+    void actionRequested(QString id, QImage image, QRectF geometry);
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
     void closeEvent(QCloseEvent*) override;

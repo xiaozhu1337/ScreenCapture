@@ -303,6 +303,28 @@ private slots:
         canvas.resize(320, 240);
         QCOMPARE(canvas.result(), exported);
     }
+    void fractionalThinPinHit() {
+        for (const QSize size : {QSize(277, 1), QSize(1, 277)}) {
+            QImage image(size, QImage::Format_RGB32);
+            image.fill(Qt::white);
+            Canvas canvas(image);
+            prepare(canvas, Tool::Select);
+            canvas.setPinned(true);
+            canvas.setPinnedArea(QRectF(QPointF(.25, .25), QSizeF(size) / 1.35));
+            const auto point = canvas.imageRect().center();
+            for (const auto tool : {Tool::Select, Tool::Pen}) {
+                canvas.setTool(tool);
+                QMouseEvent press(QEvent::MouseButtonPress, point, canvas.mapToGlobal(point),
+                                  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QApplication::sendEvent(&canvas, &press);
+                QVERIFY(canvas.isDrawing());
+                QMouseEvent release(QEvent::MouseButtonRelease, point, canvas.mapToGlobal(point),
+                                    Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QApplication::sendEvent(&canvas, &release);
+                QVERIFY(!canvas.isDrawing());
+            }
+        }
+    }
     void callbacksWheelAndScale() {
         Canvas canvas(source());
         prepare(canvas, Tool::Rectangle, style(3));
