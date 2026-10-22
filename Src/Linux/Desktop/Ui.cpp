@@ -22,6 +22,7 @@
 #include <QToolButton>
 #include <QWindow>
 #include <algorithm>
+#include <optional>
 
 namespace {
 QJsonObject catalog, fallback;
@@ -206,6 +207,9 @@ bool Ui::saveImage(QWidget* parent, const QImage& image, QString& directory)
 namespace {
 void retainClipboard(QByteArray data, const QString& type, bool autoQuit)
 {
+    struct Request { QByteArray data; QString type; bool autoQuit; };
+    static QProcess* active = nullptr;
+    static std::optional<Request> pending;
     if (autoQuit) {
         qApp->setQuitOnLastWindowClosed(false);
         qApp->setProperty("retainClipboard", true);
@@ -215,19 +219,33 @@ void retainClipboard(QByteArray data, const QString& type, bool autoQuit)
             if (!QApplication::clipboard()->ownsClipboard()) qApp->quit();
         });
     };
+    if (QGuiApplication::platformName() != "wayland") { fallback(); return; }
+    if (active) { pending = Request{std::move(data), type, autoQuit}; return; }
     const QString helper = QStandardPaths::findExecutable("wl-copy");
-    if (QGuiApplication::platformName() != "wayland" || helper.isEmpty()) { fallback(); return; }
-    // wl-copy keeps a separate Wayland owner alive after the capture window exits.
+    if (helper.isEmpty()) { fallback(); return; }
+    // Serialize ownership changes so a slow older copy cannot overwrite the latest request.
     auto* process = new QProcess(qApp);
-    QObject::connect(process, &QProcess::finished, qApp, [process, autoQuit, fallback](int code, QProcess::ExitStatus status) {
-        if (code != 0 || status != QProcess::NormalExit) {
-            qWarning("Clipboard helper failed: %s", process->readAllStandardError().constData());
-            fallback();
-        } else if (autoQuit) qApp->quit();
+    active = process;
+    const auto completed = [process, autoQuit, fallback](bool success) {
+        active = nullptr;
         process->deleteLater();
+        if (pending) {
+            auto next = std::move(*pending);
+            pending.reset();
+            retainClipboard(std::move(next.data), next.type, next.autoQuit);
+        } else if (!success) fallback();
+        else if (autoQuit) qApp->quit();
+    };
+    QObject::connect(process, &QProcess::finished, qApp, [process, completed](int code, QProcess::ExitStatus status) {
+        const bool success = code == 0 && status == QProcess::NormalExit;
+        if (!success) qWarning("Clipboard helper failed: %s", process->readAllStandardError().constData());
+        completed(success);
     });
-    QObject::connect(process, &QProcess::errorOccurred, qApp, [process, fallback](QProcess::ProcessError error) {
-        if (error == QProcess::FailedToStart) { fallback(); process->deleteLater(); }
+    QObject::connect(process, &QProcess::errorOccurred, qApp, [process, completed](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) {
+            qWarning("Cannot start clipboard helper: %s", qPrintable(process->errorString()));
+            completed(false);
+        }
     });
     process->start(helper, {"--type", type});
     process->write(data);

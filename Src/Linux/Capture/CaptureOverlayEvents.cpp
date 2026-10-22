@@ -8,6 +8,7 @@
 
 void CaptureOverlay::pointer(QWidget* view, QMouseEvent* event)
 {
+    pointerKnown = true;
     const QPointF global = view->property("captureOrigin").toPoint() + event->position();
     if (!virtualCursor || event->type() == QEvent::MouseMove) {
         cursor = pixelPoint(global);

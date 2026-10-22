@@ -10,7 +10,10 @@
 #include <QApplication>
 #include <QDBusInterface>
 #include <QDir>
+#include <QEnterEvent>
 #include <QFile>
+#include <QProcess>
+#include <QRandomGenerator>
 #include <QScreen>
 #include <QSignalSpy>
 #include <QSlider>
@@ -64,6 +67,21 @@ int main(int argc, char** argv)
 
     QImage image(320, 180, QImage::Format_ARGB32);
     image.fill(Qt::white);
+    QList<QRect> snapWindows;
+    for (auto* screen : QGuiApplication::screens()) snapWindows.append(QRect(screen->geometry().topLeft() + QPoint(40, 30), QSize(80, 60)));
+    auto* coldCapture = new CaptureOverlay(image, restored, "cap", false, snapWindows);
+    QImage firstFrame(coldCapture->size(), QImage::Format_ARGB32);
+    firstFrame.fill(Qt::transparent);
+    coldCapture->render(&firstFrame);
+    QImage background(firstFrame.size(), firstFrame.format());
+    background.fill(Qt::white);
+    check(firstFrame == background, "Before the first pointer event, capture must not flash a magnifier or guessed window selection");
+    const QPoint local(60, 50);
+    QEnterEvent entered(local, local, coldCapture->property("captureOrigin").toPoint() + local);
+    QCoreApplication::sendEvent(coldCapture, &entered);
+    check(coldCapture->selectedPixels().isValid(), "The first surface enter must initialize window snapping at the actual pointer");
+    coldCapture->close();
+    destroyClosed();
     QPointer<Editor> editor = new Editor(image, false, &restored);
     editor->show();
     app.processEvents();
@@ -122,7 +140,13 @@ int main(int argc, char** argv)
         const QPoint point = panel->window()->property("captureOrigin").toPoint() + panelOrigin + QPoint(3, 3) - desktop.topLeft();
         const QPoint pixel(qRound(point.x() * screenshot.width() / double(desktop.width())),
                            qRound(point.y() * screenshot.height() / double(desktop.height())));
-        check(screenshot.rect().contains(pixel) && screenshot.pixelColor(pixel).lightness() > 230,
+        const QPoint selected = capture->selectedGeometry().center() - desktop.topLeft();
+        const QPoint reference(qRound(selected.x() * screenshot.width() / double(desktop.width())),
+                               qRound(selected.y() * screenshot.height() / double(desktop.height())));
+        // Compare against the white selection so desktop-wide dimming does not affect this stacking check.
+        check(screenshot.rect().contains(pixel) && screenshot.rect().contains(reference)
+                  && screenshot.pixelColor(reference).lightness() > 0
+                  && screenshot.pixelColor(pixel).lightness() * 255 >= screenshot.pixelColor(reference).lightness() * 230,
               "The capture toolbar must render above the full-screen overlay before pinning");
     }
     QSignalSpy requests(capture, &CaptureOverlay::actionRequested);
@@ -140,6 +164,48 @@ int main(int argc, char** argv)
     check(pins.size() == 1 && pins[0][0].toString() == "pin", "F3 must pin the current selection");
     check(pins[0][1].value<QImage>() == image.copy(pixels), "Pinning must preserve the exact selected source pixels");
     destroyClosed();
+    if (qEnvironmentVariableIsSet("SCREENCAPTURE_NATIVE_UI_TEST")) {
+        for (bool oneShot : {false, true}) {
+            QImage source = image;
+            source.fill(oneShot ? Qt::blue : Qt::red);
+            QPointer<CaptureOverlay> copying = new CaptureOverlay(source, restored, "cap", oneShot);
+            copying->showCapture();
+            QTest::mousePress(copying, Qt::LeftButton, Qt::NoModifier, QPoint(50, 50));
+            QTest::mouseMove(copying, QPoint(220, 140));
+            QTest::mouseRelease(copying, Qt::LeftButton, Qt::NoModifier, QPoint(220, 140));
+            const auto expected = source.copy(copying->selectedPixels());
+            QTest::mouseClick(copying->findChild<QToolButton*>("clipboard"), Qt::LeftButton);
+            destroyClosed();
+            check(copying.isNull(), "Copying must close the capture overlay");
+            check(QTest::qWaitFor([&] { return qApp->findChildren<QProcess*>().isEmpty(); }, 5000),
+                  "Clipboard publication must complete after the capture closes");
+            for (int paste = 0; paste < 2; ++paste) {
+                QProcess reader;
+                reader.start("wl-paste", {"--no-newline", "--type", "image/png"});
+                check(QTest::qWaitFor([&] { return reader.state() == QProcess::NotRunning; }, 3000), "External image paste timed out");
+                check(reader.exitCode() == 0 && QImage::fromData(reader.readAllStandardOutput(), "PNG") == expected,
+                      "A separate process must paste the exact latest crop after the overlay closes");
+            }
+        }
+        QImage large(2048, 1024, QImage::Format_ARGB32);
+        QRandomGenerator random(1);
+        for (int y = 0; y < large.height(); ++y) {
+            auto* row = reinterpret_cast<QRgb*>(large.scanLine(y));
+            for (int x = 0; x < large.width(); ++x) row[x] = random.generate();
+        }
+        QImage latest(48, 32, QImage::Format_ARGB32);
+        latest.fill(Qt::green);
+        Ui::copyImage(large, false);
+        Ui::copyText("intermediate clipboard", false);
+        Ui::copyImage(latest, false);
+        check(QTest::qWaitFor([&] { return qApp->findChildren<QProcess*>().isEmpty(); }, 5000),
+              "Queued clipboard publications must complete");
+        QProcess reader;
+        reader.start("wl-paste", {"--no-newline", "--type", "image/png"});
+        check(QTest::qWaitFor([&] { return reader.state() == QProcess::NotRunning; }, 3000), "Latest image paste timed out");
+        check(reader.exitCode() == 0 && QImage::fromData(reader.readAllStandardOutput(), "PNG") == latest,
+              "An older large image or text copy must never replace the latest image");
+    }
 
     const QString path = temporary.filePath("source.png");
     check(image.save(path), "Cannot prepare pin image");

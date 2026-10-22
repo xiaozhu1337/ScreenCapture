@@ -42,5 +42,5 @@ private:
     QList<QWidget*> views;
     QWidget* tools;
     QPointF cursor;
-    bool adjusted{false}, pressed{false}, dragged{false}, virtualCursor{false};
+    bool adjusted{false}, pressed{false}, dragged{false}, virtualCursor{false}, pointerKnown{false};
 };

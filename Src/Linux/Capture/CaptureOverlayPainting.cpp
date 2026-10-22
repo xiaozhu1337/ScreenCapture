@@ -35,7 +35,7 @@ void CaptureOverlay::paint(QWidget* view, QPainter& painter)
         painter.setPen(Qt::white);
         painter.drawText(QRectF(pos + QPointF(3, 3), size - QSize(6, 6)), Qt::AlignLeft | Qt::AlignVCenter, text);
     }
-    if (!adjusted && !pressed && viewGeometry.contains(globalPoint(cursor).toPoint())) paintMagnifier(painter, viewGeometry);
+    if (pointerKnown && !adjusted && !pressed && viewGeometry.contains(globalPoint(cursor).toPoint())) paintMagnifier(painter, viewGeometry);
     if (virtualCursor) {
         const auto position = globalPoint(cursor);
         painter.setPen(QPen(Qt::white, 3));

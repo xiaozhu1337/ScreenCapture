@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QCloseEvent>
 #include <QEvent>
+#include <QEnterEvent>
 #include <QGridLayout>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -84,7 +85,7 @@ QRect CaptureOverlay::selectedGeometry() const
 }
 void CaptureOverlay::highlight()
 {
-    if (adjusted || pressed) return;
+    if (!pointerKnown || adjusted || pressed) return;
     const auto global = globalPoint(cursor).toPoint();
     for (const auto& rect : windows) {
         if (!rect.contains(global)) continue;
@@ -159,6 +160,14 @@ bool CaptureOverlay::eventFilter(QObject* watched, QEvent* event)
     auto* view = qobject_cast<QWidget*>(watched);
     if (!view || !views.contains(view)) return QWidget::eventFilter(watched, event);
     if (event->type() == QEvent::Paint) { QPainter painter(view); paint(view, painter); return true; }
+    if (event->type() == QEvent::Enter) {
+        // Wayland cannot report the global pointer position before the first surface enter.
+        cursor = pixelPoint(view->property("captureOrigin").toPoint() + static_cast<QEnterEvent*>(event)->position());
+        pointerKnown = true;
+        virtualCursor = false;
+        highlight();
+        refresh();
+    }
     if (event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonPress ||
         event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::MouseButtonDblClick) {
         pointer(view, static_cast<QMouseEvent*>(event));
