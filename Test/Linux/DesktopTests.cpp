@@ -1,5 +1,6 @@
 #include "Canvas.h"
 #include "CaptureOverlay.h"
+#include "CapturePortal.h"
 #include "DesktopApp.h"
 #include "Editor.h"
 #include "Settings.h"
@@ -8,6 +9,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QFile>
+#include <QScreen>
 #include <QSignalSpy>
 #include <QSlider>
 #include <QTemporaryDir>
@@ -22,6 +24,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     app.setApplicationName("ScreenCaptureDesktopTests");
     app.setOrganizationName("xland");
+    app.setDesktopFileName("io.github.xland.ScreenCapture");
     app.setQuitOnLastWindowClosed(false);
     QDir().mkpath("__tmp");
     QTemporaryDir temporary(QDir::current().absoluteFilePath("__tmp/desktop-test-XXXXXX"));
@@ -68,6 +71,8 @@ int main(int argc, char** argv)
     auto* capture = new CaptureOverlay(image, restored, "cap", false);
     capture->showCapture();
     app.processEvents();
+    auto* initialAction = capture->findChild<QToolButton*>("text");
+    check(initialAction && !initialAction->isVisible(), "Capture actions must stay hidden until a selection is complete");
     QTest::mousePress(capture, Qt::LeftButton, Qt::NoModifier, QPoint(50, 50));
     QTest::mouseMove(capture, QPoint(220, 140));
     QTest::mouseRelease(capture, Qt::LeftButton, Qt::NoModifier, QPoint(220, 140));
@@ -76,10 +81,46 @@ int main(int argc, char** argv)
     auto* action = capture->findChild<QToolButton*>("text");
     check(action && action->isVisible(), "Configured actions must appear after selection");
     check(!capture->findChild<QToolButton*>("ocr"), "Disabled capture tools must remain hidden");
+    auto* panel = action->parentWidget();
+    check(panel && !panel->isWindow(), "The capture toolbar must share its capture surface");
+    const QPoint panelOrigin = panel->mapTo(panel->window(), QPoint());
+    check(panel->window()->rect().contains(QRect(panelOrigin, panel->size())),
+          "The capture toolbar must stay inside the selected screen");
+    // Opt in because this checks compositor stacking through the real screenshot portal.
+    if (qEnvironmentVariableIsSet("SCREENCAPTURE_NATIVE_UI_TEST")) {
+        check(QGuiApplication::platformName() == "wayland", "Native capture checks require Wayland");
+        CapturePortal portal;
+        QSignalSpy snapshots(&portal, &CapturePortal::captured);
+        QSignalSpy errors(&portal, &CapturePortal::failed);
+        QSignalSpy cancelled(&portal, &CapturePortal::cancelled);
+        portal.capture();
+        check(QTest::qWaitFor([&] { return !snapshots.isEmpty() || !errors.isEmpty() || !cancelled.isEmpty(); }, 5000),
+              "Native toolbar screenshot timed out");
+        check(!snapshots.isEmpty(), "Native toolbar screenshot failed or was cancelled");
+        const auto screenshot = snapshots[0][0].value<QImage>();
+        screenshot.save("__tmp/capture-menu-native.png");
+        QRect desktop;
+        for (auto* screen : QGuiApplication::screens()) desktop = desktop.united(screen->geometry());
+        const QPoint point = panel->window()->property("captureOrigin").toPoint() + panelOrigin + QPoint(3, 3) - desktop.topLeft();
+        const QPoint pixel(qRound(point.x() * screenshot.width() / double(desktop.width())),
+                           qRound(point.y() * screenshot.height() / double(desktop.height())));
+        check(screenshot.rect().contains(pixel) && screenshot.pixelColor(pixel).lightness() > 230,
+              "The capture toolbar must render above the full-screen overlay before pinning");
+    }
     QSignalSpy requests(capture, &CaptureOverlay::actionRequested);
+    QTest::mouseClick(action, Qt::LeftButton);
+    check(requests.size() == 1 && requests[0][0].toString() == "text", "Clicking a capture tool must dispatch that action");
+    check(requests[0][1].value<QImage>() == image.copy(pixels), "Toolbar actions must preserve the exact selected source pixels");
+    destroyClosed();
+    capture = new CaptureOverlay(image, restored, "cap", false);
+    capture->showCapture();
+    QTest::mousePress(capture, Qt::LeftButton, Qt::NoModifier, QPoint(50, 50));
+    QTest::mouseMove(capture, QPoint(220, 140));
+    QTest::mouseRelease(capture, Qt::LeftButton, Qt::NoModifier, QPoint(220, 140));
+    QSignalSpy pins(capture, &CaptureOverlay::actionRequested);
     QTest::keyClick(capture, Qt::Key_F3);
-    check(requests.size() == 1 && requests[0][0].toString() == "pin", "F3 must pin the current selection");
-    check(requests[0][1].value<QImage>() == image.copy(pixels), "Pinning must preserve the exact selected source pixels");
+    check(pins.size() == 1 && pins[0][0].toString() == "pin", "F3 must pin the current selection");
+    check(pins[0][1].value<QImage>() == image.copy(pixels), "Pinning must preserve the exact selected source pixels");
     destroyClosed();
 
     const QString path = temporary.filePath("source.png");

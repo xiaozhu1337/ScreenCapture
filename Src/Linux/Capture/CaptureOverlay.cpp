@@ -39,8 +39,8 @@ CaptureOverlay::CaptureOverlay(QImage source, Settings& preferences, QString mod
         views.append(view);
     }
     cursor = pixelPoint(QCursor::pos());
-    tools = new QWidget(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    tools->setAttribute(Qt::WA_ShowWithoutActivating);
+    tools = new QWidget(this);
+    tools->hide();
     Ui::stylePanel(tools);
     buildTools();
     highlight();
@@ -126,8 +126,15 @@ void CaptureOverlay::layoutTools()
     if (!screen) screen = QGuiApplication::primaryScreen();
     const auto work = screen->availableGeometry();
     const auto point = Ui::toolbarPosition(region, work, tools->size(), tools->height(), settings.values.toolbarBottom, 7);
-    Ui::positionWindow(tools, QRect(point, tools->size()), false);
+    // Share the capture surface so Wayland cannot stack controls below the active overlay.
+    QWidget* view = this;
+    for (auto* candidate : views) {
+        if (candidate->property("captureGeometry").toRect() == screen->geometry()) { view = candidate; break; }
+    }
+    if (tools->parentWidget() != view) tools->setParent(view);
+    tools->move(point - view->property("captureOrigin").toPoint());
     tools->show();
+    tools->raise();
 }
 void CaptureOverlay::trigger(const QString& id)
 {
