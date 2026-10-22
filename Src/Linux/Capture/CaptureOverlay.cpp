@@ -36,6 +36,10 @@ CaptureOverlay::CaptureOverlay(QImage source, Settings& preferences, QString mod
         view->setFocusPolicy(Qt::StrongFocus);
         view->installEventFilter(this);
         Ui::positionWindow(view, screen->geometry());
+        if (QGuiApplication::platformName() == "wayland") {
+            // KWin animates unclassified layer surfaces as normal windows.
+            LayerShellQt::Window::get(view->windowHandle())->setScope("utility");
+        }
         views.append(view);
     }
     cursor = pixelPoint(QCursor::pos());

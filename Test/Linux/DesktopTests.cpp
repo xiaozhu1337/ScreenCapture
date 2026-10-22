@@ -6,6 +6,7 @@
 #include "Settings.h"
 #include "SettingsDialog.h"
 #include "Ui.h"
+#include <LayerShellQt/Window>
 #include <QApplication>
 #include <QDir>
 #include <QFile>
@@ -71,6 +72,13 @@ int main(int argc, char** argv)
     auto* capture = new CaptureOverlay(image, restored, "cap", false);
     capture->showCapture();
     app.processEvents();
+    if (QGuiApplication::platformName() == "wayland") {
+        for (auto* view : app.topLevelWidgets()) {
+            if (view->objectName() != "captureOverlay") continue;
+            check(LayerShellQt::Window::get(view->windowHandle())->scope() == "utility",
+                  "Capture surfaces must bypass normal-window opening and closing animations");
+        }
+    }
     auto* initialAction = capture->findChild<QToolButton*>("text");
     check(initialAction && !initialAction->isVisible(), "Capture actions must stay hidden until a selection is complete");
     QTest::mousePress(capture, Qt::LeftButton, Qt::NoModifier, QPoint(50, 50));
