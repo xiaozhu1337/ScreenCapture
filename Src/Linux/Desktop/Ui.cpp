@@ -175,6 +175,8 @@ void Ui::positionWindow(QWidget* window, QRect geometry, bool keyboard)
     QScreen* screen = QGuiApplication::screenAt(geometry.center());
     if (!screen) screen = QGuiApplication::primaryScreen();
     auto* layer = LayerShellQt::Window::get(window->windowHandle());
+    // KWin must not animate capture, pin or floating control surfaces as normal windows.
+    layer->setScope("utility");
     layer->setScreen(screen);
     layer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop) | LayerShellQt::Window::AnchorLeft);
     layer->setLayer(LayerShellQt::Window::LayerOverlay);

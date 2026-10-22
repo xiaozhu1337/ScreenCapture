@@ -8,6 +8,7 @@
 #include "Ui.h"
 #include <LayerShellQt/Window>
 #include <QApplication>
+#include <QDBusInterface>
 #include <QDir>
 #include <QFile>
 #include <QScreen>
@@ -19,6 +20,17 @@
 
 static void check(bool value, const char* message) { if (!value) qFatal("%s", message); }
 static void destroyClosed() { QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete); }
+static void checkUtilitySurfaces(QWidget* root)
+{
+    if (QGuiApplication::platformName() != "wayland") return;
+    auto surfaces = root->findChildren<QWidget*>();
+    surfaces.prepend(root);
+    for (auto* surface : surfaces) {
+        if (!surface->isWindow() || !surface->isVisible() || surface->windowType() != Qt::Tool) continue;
+        check(LayerShellQt::Window::get(surface->windowHandle())->scope() == "utility",
+              "Capture, pin and floating control surfaces must bypass normal-window animations");
+    }
+}
 
 int main(int argc, char** argv)
 {
@@ -57,12 +69,16 @@ int main(int argc, char** argv)
     app.processEvents();
     check(editor->drawingCanvas()->selectedTool() == Canvas::Tool::Select, "A fresh pin must have no drawing tool selected");
     editor->selectTool("text");
+    checkUtilitySurfaces(editor);
     check(editor->drawingCanvas()->style() == restored.values.toolPin["text"], "Selecting a tool must restore its own style");
     auto* slider = editor->findChild<QSlider*>("toolSize");
     check(slider && slider->minimum() == 10 && slider->maximum() == 60, "Text size range must match Windows");
     slider->setValue(44);
     check(Settings(temporary.filePath("application")).values.toolPin["text"].size == 44, "Changing a tool size must persist immediately");
     check(restored.values.toolPin["rect"].size == 2, "Changing text style must not change other tools");
+    editor->selectTool("line");
+    check(editor->drawingCanvas()->selectedTool() == Canvas::Tool::Pen, "Line must activate in the pinned image");
+    checkUtilitySurfaces(editor);
     editor->selectTool("eraser");
     check(editor->findChild<QToolButton*>("fill"), "Eraser must offer rectangular mode");
     editor->close();
@@ -72,13 +88,7 @@ int main(int argc, char** argv)
     auto* capture = new CaptureOverlay(image, restored, "cap", false);
     capture->showCapture();
     app.processEvents();
-    if (QGuiApplication::platformName() == "wayland") {
-        for (auto* view : app.topLevelWidgets()) {
-            if (view->objectName() != "captureOverlay") continue;
-            check(LayerShellQt::Window::get(view->windowHandle())->scope() == "utility",
-                  "Capture surfaces must bypass normal-window opening and closing animations");
-        }
-    }
+    checkUtilitySurfaces(capture);
     auto* initialAction = capture->findChild<QToolButton*>("text");
     check(initialAction && !initialAction->isVisible(), "Capture actions must stay hidden until a selection is complete");
     QTest::mousePress(capture, Qt::LeftButton, Qt::NoModifier, QPoint(50, 50));
@@ -149,6 +159,39 @@ int main(int argc, char** argv)
         pins.first()->close();
         destroyClosed();
         check(pins.last()->isVisible(), "Closing one pin must not close another");
+        if (qEnvironmentVariableIsSet("SCREENCAPTURE_NATIVE_UI_TEST")) {
+            desktop.activate("cap", {});
+            QPointer<CaptureOverlay> selection;
+            check(QTest::qWaitFor([&] {
+                for (auto* window : app.topLevelWidgets())
+                    if (auto* overlay = dynamic_cast<CaptureOverlay*>(window); overlay && overlay->isVisible()) selection = overlay;
+                return !selection.isNull();
+            }, 5000), "Native capture must open a selection overlay");
+            QTest::mousePress(selection, Qt::LeftButton, Qt::NoModifier, QPoint(50, 50));
+            QTest::mouseMove(selection, QPoint(220, 140));
+            QTest::mouseRelease(selection, Qt::LeftButton, Qt::NoModifier, QPoint(220, 140));
+            const QRect geometry = selection->selectedGeometry();
+            const QSize pixels = selection->selectedPixels().size();
+            auto* line = selection->findChild<QToolButton*>("line");
+            check(line && line->isVisible(), "The line action must be available after selecting a region");
+            QTest::mouseClick(line, Qt::LeftButton);
+            destroyClosed();
+            check(selection.isNull(), "Selecting line must close the selection overlay");
+            Editor* pin = nullptr;
+            for (auto* window : app.topLevelWidgets())
+                if (auto* candidate = dynamic_cast<Editor*>(window); candidate && candidate->isVisible()
+                    && candidate->drawingCanvas()->selectedTool() == Canvas::Tool::Pen) pin = candidate;
+            check(pin && pin->imageGeometry() == geometry && pin->drawingCanvas()->imageSize() == pixels,
+                  "Selecting line must open a pin at the selected region with the line tool active");
+            checkUtilitySurfaces(pin);
+            QTest::qWait(60);
+            QDBusInterface effects("org.kde.KWin", "/Effects", "org.kde.kwin.Effects");
+            if (effects.isValid())
+                check(!effects.property("activeEffects").toStringList().contains("scale"),
+                      "Switching from selection to line editing must not trigger KWin scale");
+            pin->close();
+            destroyClosed();
+        }
         desktop.openSettings();
         desktop.openSettings();
         int dialogs = 0;
