@@ -28,11 +28,12 @@ target_end()
 for name, file in pairs({ScreenCaptureTests = "CanvasTests", ScreenCaptureDesktopTests = "DesktopTests",
                          ScreenCapturePortalTests = "PortalTests", ScreenCaptureSettingsTests = "SettingsDialogTests",
                          ScreenCaptureCanvasParityTests = "CanvasParityTests", ScreenCaptureRecordingTests = "RecordingTests",
-                         ScreenCaptureMediaRegressionTests = "MediaRegressionTests"}) do
+                         ScreenCaptureMediaRegressionTests = "MediaRegressionTests", ScreenCaptureWindowGeometryTests = "WindowGeometryTests"}) do
     target(name)
         set_default(false)
         linux_application()
         add_frameworks("QtTest")
+        if file == "WindowGeometryTests" then add_frameworks("QtQml") end
         local moc = file == "SettingsDialogTests" or file == "CanvasParityTests" or file == "RecordingTests" or file == "MediaRegressionTests"
         if file == "MediaRegressionTests" then
             add_ldflags("-Wl,--wrap=pw_stream_dequeue_buffer", "-Wl,--wrap=pw_stream_queue_buffer", {force = true})

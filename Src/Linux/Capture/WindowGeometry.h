@@ -1,6 +1,6 @@
 #pragma once
 #include <QObject>
-#include <QRect>
+#include <QRectF>
 #include <QTemporaryFile>
 #include <QTimer>
 
@@ -13,11 +13,11 @@ public:
     ~WindowGeometry() override;
     void request();
 signals:
-    void ready(QList<QRect> windows);
+    void ready(QList<QRectF> windows);
 public slots:
     Q_SCRIPTABLE void setWindows(const QString& json);
 private:
-    void finish(QList<QRect> windows = {});
+    void finish(QList<QRectF> windows = {});
     QTemporaryFile script;
     QTimer timer;
     QString plugin;

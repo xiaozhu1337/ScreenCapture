@@ -43,7 +43,7 @@ def main():
     tests = {**ENV, "QT_QPA_PLATFORM": "offscreen", "QT_FORCE_STDERR_LOGGING": "1",
              "PATH": str(output) + os.pathsep + os.environ.get("PATH", "")}
     run(str(ROOT / "build/tests/release/ScreenCaptureTests"), env=tests)
-    for target in ("ScreenCaptureDesktopTests", "ScreenCaptureSettingsTests", "ScreenCapturePortalTests",
+    for target in ("ScreenCaptureDesktopTests", "ScreenCaptureSettingsTests", "ScreenCapturePortalTests", "ScreenCaptureWindowGeometryTests",
                    "ScreenCaptureCanvasParityTests", "ScreenCaptureRecordingTests", "ScreenCaptureMediaRegressionTests"):
         run("mise", "exec", "--", "xmake", "build", target)
         run("dbus-run-session", "--", str(ROOT / "build/tests/release" / target), env=tests)

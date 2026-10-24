@@ -69,7 +69,7 @@ int main(int argc, char** argv)
 
     QImage image(320, 180, QImage::Format_ARGB32);
     image.fill(Qt::white);
-    QList<QRect> snapWindows;
+    QList<QRectF> snapWindows;
     for (auto* screen : QGuiApplication::screens()) snapWindows.append(QRect(screen->geometry().topLeft() + QPoint(40, 30), QSize(80, 60)));
     auto* coldCapture = new CaptureOverlay(image, restored, "cap", false, snapWindows);
     QImage firstFrame(coldCapture->size(), QImage::Format_ARGB32);

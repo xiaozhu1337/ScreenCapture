@@ -15,7 +15,7 @@
 #include <QWindow>
 #include <cmath>
 
-CaptureOverlay::CaptureOverlay(QImage source, Settings& preferences, QString mode, bool quit, const QList<QRect>& rectangles)
+CaptureOverlay::CaptureOverlay(QImage source, Settings& preferences, QString mode, bool quit, const QList<QRectF>& rectangles)
     : QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint),
       image(std::move(source)), settings(preferences), entry(std::move(mode)), autoQuit(quit), selection(image.size()), windows(rectangles)
 {
@@ -86,11 +86,11 @@ QRectF CaptureOverlay::selectedGeometry() const
 void CaptureOverlay::highlight()
 {
     if (!pointerKnown || adjusted || pressed) return;
-    const auto global = globalPoint(cursor).toPoint();
+    const auto global = globalPoint(cursor);
     for (const auto& rect : windows) {
         if (!rect.contains(global)) continue;
         const auto clipped = rect.intersected(desktop);
-        selection.area = QRectF(pixelPoint(clipped.topLeft()), pixelPoint(clipped.topLeft() + QPoint(clipped.width(), clipped.height())));
+        selection.area = QRectF(pixelPoint(clipped.topLeft()), pixelPoint(clipped.bottomRight()));
         return;
     }
     selection.area = {};

@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
+#include <cmath>
 
 namespace {
 const QString service = "org.kde.KWin";
@@ -45,8 +46,16 @@ var bounds = [];
 var windows = workspace.stackingOrder;
 for (var i = windows.length - 1; i >= 0; --i) {
     var win = windows[i];
-    if (win.minimized || win.deleted || win.onCurrentDesktop === false) continue;
-    if (!win.normalWindow && !win.dialog) continue;
+    if (win.minimized || win.deleted || win.hidden) continue;
+    var desktop = workspace.currentDesktopForScreen ? workspace.currentDesktopForScreen(win.output) : workspace.currentDesktop;
+    if (win.desktops.length && win.desktops.indexOf(desktop) === -1) continue;
+    if (workspace.currentActivity && win.activities.length && win.activities.indexOf(workspace.currentActivity) === -1) continue;
+    if (win.desktopWindow || win.tooltip || win.notification || win.criticalNotification ||
+        win.onScreenDisplay || win.dndIcon || win.outline || win.inputMethod) continue;
+    // Native Wayland menus may have an unknown type but still expose popupWindow.
+    if (!win.normalWindow && !win.dialog && !win.dock && !win.toolbar && !win.utility &&
+        !win.menu && !win.dropdownMenu && !win.popupMenu && !win.popupWindow &&
+        !win.appletPopup && !win.comboBox && !win.splash) continue;
     var rect = win.frameGeometry;
     if (rect.width <= 6 || rect.height <= 6) continue;
     bounds.push({x: rect.x, y: rect.y, width: rect.width, height: rect.height});
@@ -76,16 +85,19 @@ void WindowGeometry::setWindows(const QString& json)
     QJsonParseError error;
     const auto document = QJsonDocument::fromJson(json.toUtf8(), &error);
     if (error.error != QJsonParseError::NoError || !document.isArray()) { finish(); return; }
-    QList<QRect> rectangles;
+    QList<QRectF> rectangles;
     for (const auto& entry : document.array()) {
         if (rectangles.size() >= 4096) break;
         const auto object = entry.toObject();
-        const QRect rectangle(object["x"].toInt(), object["y"].toInt(), object["width"].toInt(), object["height"].toInt());
-        if (rectangle.width() > 6 && rectangle.height() > 6) rectangles.append(rectangle);
+        if (!object["x"].isDouble() || !object["y"].isDouble() ||
+            !object["width"].isDouble() || !object["height"].isDouble()) continue;
+        const QRectF rectangle(object["x"].toDouble(), object["y"].toDouble(), object["width"].toDouble(), object["height"].toDouble());
+        if (rectangle.width() > 6 && rectangle.height() > 6 &&
+            std::isfinite(rectangle.right()) && std::isfinite(rectangle.bottom())) rectangles.append(rectangle);
     }
     finish(rectangles);
 }
-void WindowGeometry::finish(QList<QRect> windows)
+void WindowGeometry::finish(QList<QRectF> windows)
 {
     if (!active) return;
     active = false;

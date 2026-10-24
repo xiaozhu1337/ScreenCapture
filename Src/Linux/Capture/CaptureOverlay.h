@@ -11,7 +11,7 @@ class CaptureOverlay : public QWidget
 {
     Q_OBJECT
 public:
-    CaptureOverlay(QImage image, Settings& settings, QString entry, bool autoQuit, const QList<QRect>& windows = {});
+    CaptureOverlay(QImage image, Settings& settings, QString entry, bool autoQuit, const QList<QRectF>& windows = {});
     QRect selectedPixels() const;
     QRectF selectedGeometry() const;
     void showCapture();
@@ -38,7 +38,7 @@ private:
     bool autoQuit;
     Selection selection;
     QRect desktop;
-    QList<QRect> windows;
+    QList<QRectF> windows;
     QList<QWidget*> views;
     QWidget* tools;
     QPointF cursor;

@@ -44,7 +44,7 @@ DesktopApp::DesktopApp(Settings& preferences, bool quit, QString destination, QO
         pending = false;
         if (!tray.isVisible() && editors.isEmpty()) qApp->exit(0);
     });
-    connect(&windowGeometry, &WindowGeometry::ready, this, [this](const QList<QRect>& windows) {
+    connect(&windowGeometry, &WindowGeometry::ready, this, [this](const QList<QRectF>& windows) {
         if (overlay) return;
         // Resolve desktop windows before showing our own capture surfaces.
         portal.setProperty("captureWindows", QVariant::fromValue(windows));
@@ -117,7 +117,7 @@ void DesktopApp::captured(QImage image)
     pending = false;
     if (!output.isEmpty()) { openImage(std::move(image)); return; }
     overlay = new CaptureOverlay(std::move(image), settings, captureMode, oneShot || !tray.isVisible(),
-                                 portal.property("captureWindows").value<QList<QRect>>());
+                                 portal.property("captureWindows").value<QList<QRectF>>());
     connect(overlay, &CaptureOverlay::actionRequested, this, &DesktopApp::dispatch);
     connect(overlay, &QObject::destroyed, this, &DesktopApp::quitIfIdle);
     overlay->showCapture();
