@@ -163,6 +163,24 @@ namespace {
         pump();
     }
 
+    void requireToolbarAboveCanvas(WinPin* pin)
+    {
+        for (auto toolbar : { pin->toolMain->hwnd, pin->toolSub->hwnd }) {
+            require(IsWindowVisible(toolbar), "Overlay toolbar must be visible");
+            bool above = false;
+            for (auto current = GetWindow(pin->hwnd, GW_HWNDPREV); current;
+                current = GetWindow(current, GW_HWNDPREV)) {
+                if (current == toolbar) { above = true; break; }
+            }
+            require(above, "Overlay toolbar must stay above the selected image");
+            RECT bounds{};
+            require(GetWindowRect(toolbar, &bounds), "Overlay toolbar bounds must be available");
+            const POINT center{ (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+            require(WindowFromPoint(center) == toolbar,
+                "Overlay toolbar controls must receive pointer input instead of the image");
+        }
+    }
+
     void snapshot(Ling::WinBase* window, const wchar_t* name)
     {
         pump();
@@ -303,7 +321,7 @@ void testGuiFeatures()
     MONITORINFO info{ sizeof(MONITORINFO) };
     GetMonitorInfo(MonitorFromWindow(cap->hwnd, MONITOR_DEFAULTTOPRIMARY), &info);
     auto work = info.rcWork;
-    region = { work.left + 80, work.bottom - 240, std::min(work.left + 680, work.right - 20), work.bottom - 8 };
+    region = { work.left + 80, work.top + 8, std::min(work.left + 680, work.right - 20), work.bottom - 8 };
     SetForegroundWindow(cap->hwnd);
     require(GetForegroundWindow() == cap->hwnd, "Escape regression test must start in the foreground");
     selectRegion(cap, region);
@@ -320,11 +338,27 @@ void testGuiFeatures()
         "Promoted line must select line and display its style controls");
     require(pin->toolMain->y >= region.top && pin->toolSub->y + pin->toolSub->h <= work.bottom,
         "Main and sub toolbar group must stay visible at the bottom");
+    requireToolbarAboveCanvas(pin);
+    SetForegroundWindow(pin->hwnd);
+    pump();
+    requireToolbarAboveCanvas(pin);
+    click(pin->toolMain->body.get(), L"rect");
+    pump();
+    requireToolbarAboveCanvas(pin);
+    click(pin->toolMain->body.get(), L"line");
+    pin->toolSub->setShapeSliderVal(L"line", 60.f * pin->toolSub->dpi);
+    pin->layoutTools();
+    pump();
+    requireToolbarAboveCanvas(pin);
+    require(pin->toolSub->y + pin->toolSub->h <= work.bottom,
+        "Expanded line controls must remain inside the work area");
     require(GetFocus() == pin->hwnd || GetFocus() == pin->toolMain->hwnd,
         "Selecting line must keep keyboard focus on a window that handles Escape");
     require(GetForegroundWindow() == pin->hwnd || GetForegroundWindow() == pin->toolMain->hwnd,
         "Escape regression test must own the foreground window");
     const auto emptyPin = pin->hwnd;
+    const auto closedMain = pin->toolMain->hwnd;
+    const auto closedSub = pin->toolSub->hwnd;
     INPUT escape[2]{};
     for (auto& input : escape) {
         input.type = INPUT_KEYBOARD;
@@ -334,6 +368,9 @@ void testGuiFeatures()
     require(SendInput(2, escape, sizeof(INPUT)) == 2, "Escape input must reach the foreground window");
     pump();
     require(!IsWindow(emptyPin), "Escape must close the new line window before drawing any strokes");
+    require(!IsWindow(closedMain) && !IsWindow(closedSub),
+        "Closing the image must destroy both owned toolbars");
+    Setting::get()->setToolbarBottom(false);
     WinCap::init();
     cap = WinCap::get();
     selectRegion(cap, region);
@@ -343,6 +380,8 @@ void testGuiFeatures()
     pump();
     pin = findWindow<WinPin>();
     require(pin != nullptr, "Line window must reopen after Escape");
+    requireToolbarAboveCanvas(pin);
+    Setting::get()->setToolbarBottom(true);
     const auto originalLineWidth = pin->toolSub->getSliderVal();
     pin->toolSub->setShapeSliderVal(L"line", 2.f * pin->toolSub->dpi);
     auto thinCursor = requestCursor(pin);

@@ -253,6 +253,10 @@ void WinPin::initFromData(int x, int y, int w, int h, std::vector<BYTE>& data)
 
 void WinPin::onCreated()
 {
+    // Owned popups stay above the canvas even when drawing activates it.
+    // The toolbars are constructed first, so attach them once this HWND exists.
+    SetWindowLongPtr(toolMain->hwnd, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(hwnd));
+    SetWindowLongPtr(toolSub->hwnd, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(hwnd));
     disableBorderRadius();
     auto d2d = Ling::D2D::get();
     // 画布铺满窗口，走 swap chain（双缓冲）后端，避免拖动 shape 时整帧闪烁
