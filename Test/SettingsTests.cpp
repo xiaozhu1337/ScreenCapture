@@ -10,6 +10,7 @@
 
 void testGuiFeatures();
 void testStartup();
+void testTrayRecovery();
 
 namespace {
     void require(bool value, const char* message)
@@ -106,12 +107,13 @@ int main(int argc, char** argv)
         else {
             require(Ling::init(), "Ling initialization failed");
             testStartup();
+            testTrayRecovery();
             Setting::init();
             Lang::init();
             testShortcuts();
             testPlacement();
             testToolbarConfig();
-            std::cout << "Startup, shortcut, placement and menu configuration tests passed\n";
+            std::cout << "Startup, tray recovery, shortcut, placement and menu configuration tests passed\n";
         }
     }
     catch (const std::exception& error) {

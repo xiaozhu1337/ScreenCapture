@@ -28,6 +28,7 @@ void App::dispose()
     WinPin::dispose();
     WinCap::dispose();
     WinSetting::dispose();
+    Tray::dispose();
     Lang::dispose();
     Setting::dispose();
     app.reset();

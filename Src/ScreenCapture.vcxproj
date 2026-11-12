@@ -188,6 +188,7 @@
     <ClCompile Include="Tool\ToolVideo.cpp" />
     <ClCompile Include="Tip.cpp" />
     <ClCompile Include="Tray.cpp" />
+    <ClCompile Include="Desktop\TrayIcon.cpp" />
     <ClCompile Include="Update.cpp" />
     <ClCompile Include="Util.cpp" />
     <ClCompile Include="Win\cgif\cgif.c">
@@ -263,6 +264,8 @@
     <ClInclude Include="Tool\ToolVideo.h" />
     <ClInclude Include="Tip.h" />
     <ClInclude Include="Tray.h" />
+    <ClInclude Include="Desktop\TrayIcon.h" />
+    <ClInclude Include="Desktop\TrayLog.h" />
     <ClInclude Include="Update.h" />
     <ClInclude Include="Util.h" />
     <ClInclude Include="quirc\quirc.h" />

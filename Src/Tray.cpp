@@ -14,11 +14,9 @@ namespace {
 
 Tray::Tray()
 {
-	auto lingApp = Ling::App::get();
-	lingApp->initTray(100, L"Screen Capture");
 	Setting::get()->initShortcutKeys();
 	// 左键单击 / 双击 都进入截图
-	lingApp->onTrayMouseEvent.add([this](bool isDown, bool isRight) {
+	icon = std::make_unique<TrayIcon>([this](bool isDown, bool isRight) {
 		if (isDown && !isRight) {
 			WinCap::init();
 		}
@@ -41,6 +39,11 @@ void Tray::init()
 Tray* Tray::get()
 {
 	return trayIns.get();
+}
+
+void Tray::dispose()
+{
+	trayIns.reset();
 }
 
 void Tray::onTrayRightClick()
